@@ -1,0 +1,1741 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "ApnaFarm API",
+        "version": "1.0.1"
+    },
+    "paths": {
+        "/api/configured-projects": {
+            "get": {
+                "tags": [
+                    "FarmConfigurations"
+                ],
+                "summary": "Get paginated Projects",
+                "description": "Get paginated Projects",
+                "operationId": "getConfiguredProjects",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Page number for pagination",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "description": "Number of items per page",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/FarmConfigurationResource"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer",
+                                            "example": 100
+                                        },
+                                        "page": {
+                                            "type": "integer",
+                                            "example": 1
+                                        },
+                                        "pageSize": {
+                                            "type": "integer",
+                                            "example": 10
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/add-farm-details": {
+            "post": {
+                "tags": [
+                    "Farm"
+                ],
+                "summary": "Create a new farm",
+                "description": "Creates a new farm with location, size, configuration details, and crop stage.",
+                "operationId": "21361b7e13669ecf0f55ca8b256ceeb2",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "location",
+                                    "size",
+                                    "latitude",
+                                    "longitude",
+                                    "irrigation_source",
+                                    "soil_type",
+                                    "sowing_method",
+                                    "seed_variety",
+                                    "crop",
+                                    "sowing_date",
+                                    "farm_configuration",
+                                    "crop_stage"
+                                ],
+                                "properties": {
+                                    "location": {
+                                        "type": "string",
+                                        "example": "Kampala"
+                                    },
+                                    "size": {
+                                        "type": "string",
+                                        "example": "10"
+                                    },
+                                    "latitude": {
+                                        "type": "string",
+                                        "example": "0.3131"
+                                    },
+                                    "longitude": {
+                                        "type": "string",
+                                        "example": "32.5811"
+                                    },
+                                    "irrigation_source": {
+                                        "description": "Dropdown selection: well, canal, rainfed",
+                                        "type": "string",
+                                        "enum": [
+                                            "well",
+                                            "canal",
+                                            "rainfed"
+                                        ],
+                                        "example": "well"
+                                    },
+                                    "soil_type": {
+                                        "description": "Dropdown selection: clay, loam, sandy",
+                                        "type": "string",
+                                        "enum": [
+                                            "clay",
+                                            "loam",
+                                            "sandy"
+                                        ],
+                                        "example": "clay"
+                                    },
+                                    "sowing_method": {
+                                        "description": "Dropdown selection: manual, mechanized, hydroponic",
+                                        "type": "string",
+                                        "enum": [
+                                            "manual",
+                                            "mechanized",
+                                            "hydroponic"
+                                        ],
+                                        "example": "manual"
+                                    },
+                                    "seed_variety": {
+                                        "description": "Dropdown selection: hybrid, organic, GMO",
+                                        "type": "string",
+                                        "enum": [
+                                            "hybrid",
+                                            "organic",
+                                            "GMO"
+                                        ],
+                                        "example": "hybrid"
+                                    },
+                                    "crop": {
+                                        "description": "Dropdown selection: wheat, rice, maize",
+                                        "type": "string",
+                                        "enum": [
+                                            "wheat",
+                                            "rice",
+                                            "maize"
+                                        ],
+                                        "example": "wheat"
+                                    },
+                                    "sowing_date": {
+                                        "type": "string",
+                                        "example": "2021-09-01"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Farm 1"
+                                    },
+                                    "farm_configuration": {
+                                        "type": "array",
+                                        "items": {
+                                            "properties": {
+                                                "latitude": {
+                                                    "type": "number",
+                                                    "example": 1
+                                                },
+                                                "longitude": {
+                                                    "type": "number",
+                                                    "example": 10
+                                                },
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "crop_stage": {
+                                        "description": "Dropdown selection: sapling_stage, vegetative_growth, flowering_stage, fruit_setting, fruit_development, harvesting, post_harvest_ripening",
+                                        "type": "string",
+                                        "enum": [
+                                            "sapling_stage",
+                                            "vegetative_growth",
+                                            "flowering_stage",
+                                            "fruit_setting",
+                                            "fruit_development",
+                                            "harvesting",
+                                            "post_harvest_ripening"
+                                        ],
+                                        "example": "vegetative_growth"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Farm created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "Farm created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Resource Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/get-farm-list": {
+            "get": {
+                "tags": [
+                    "Farm"
+                ],
+                "summary": "Get list of farms for the authenticated user",
+                "operationId": "getFarmList",
+                "responses": {
+                    "200": {
+                        "description": "Farm details retrieved successfully"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/farm/enums": {
+            "get": {
+                "tags": [
+                    "Farm"
+                ],
+                "summary": "Get available enums for farm",
+                "description": "Display available enum options.",
+                "operationId": "b742a6b8ae4d6d56a9ef6e06cc8b0660",
+                "responses": {
+                    "200": {
+                        "description": "List of Enums",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "irrigation_source": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "soil_type": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "sowing_method": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "seed_variety": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "crop": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/farm-statistics": {
+            "get": {
+                "tags": [
+                    "Farm"
+                ],
+                "summary": "Get farm statistics",
+                "description": "This endpoint returns the total number of farms, total land size, and crop distribution (in acres).",
+                "operationId": "a146f18540f7d0a40884d5860f0aa8c1",
+                "responses": {
+                    "200": {
+                        "description": "Farm statistics retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "total_farms": {
+                                            "description": "The total number of farms",
+                                            "type": "integer",
+                                            "example": 29
+                                        },
+                                        "total_land": {
+                                            "description": "The total size of land in acres",
+                                            "type": "integer",
+                                            "example": 120
+                                        },
+                                        "crops": {
+                                            "description": "Breakdown of crop distribution in acres",
+                                            "properties": {
+                                                "Sugarcane": {
+                                                    "description": "Acres used for Sugarcane",
+                                                    "type": "integer",
+                                                    "example": 29
+                                                },
+                                                "Cotton": {
+                                                    "description": "Acres used for Cotton",
+                                                    "type": "integer",
+                                                    "example": 12
+                                                },
+                                                "Wheat": {
+                                                    "description": "Acres used for Wheat",
+                                                    "type": "integer",
+                                                    "example": 11
+                                                },
+                                                "Free": {
+                                                    "description": "Acres of free land",
+                                                    "type": "integer",
+                                                    "example": 3
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Something went wrong"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/investments": {
+            "post": {
+                "tags": [
+                    "Investments"
+                ],
+                "summary": "Store new investment",
+                "description": "Stores a new investment in the system",
+                "operationId": "storeInvestment",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/InvestmentRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Investment"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/get-project-list": {
+            "get": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Get all paginated project data",
+                "description": "Retrieve a list of available, funded, and completed projects with pagination.",
+                "operationId": "getAllPaginatedDataList",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Page number for pagination",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "description": "Number of items per page",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "example": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "available_projects": {
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Project"
+                                                    }
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "example": 100
+                                                },
+                                                "page": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "pageSize": {
+                                                    "type": "integer",
+                                                    "example": 10
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "funded_project": {
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Project"
+                                                    }
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "example": 50
+                                                },
+                                                "page": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "pageSize": {
+                                                    "type": "integer",
+                                                    "example": 10
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "completed_projects": {
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Project"
+                                                    }
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "example": 30
+                                                },
+                                                "page": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "pageSize": {
+                                                    "type": "integer",
+                                                    "example": 10
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/api/register": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Register a new user",
+                "operationId": "registerUser",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "phone_number",
+                                    "user_type"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "description": "User's name",
+                                        "type": "string",
+                                        "format": "name",
+                                        "example": "John Doe"
+                                    },
+                                    "phone_number": {
+                                        "description": "User's phone number",
+                                        "type": "string",
+                                        "format": "phone_number",
+                                        "example": "08012345678"
+                                    },
+                                    "user_type": {
+                                        "description": "User's type",
+                                        "type": "string",
+                                        "format": "user_type",
+                                        "example": "customer"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "test@gmail.com"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Registered Successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User registered successfully"
+                                        },
+                                        "token": {
+                                            "type": "string",
+                                            "example": "abc123"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Validation error"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    },
+                    "404": {
+                        "description": "Resource Not Found"
+                    }
+                }
+            }
+        },
+        "/api/verify-otp": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Verify OTP",
+                "operationId": "verifyOtp",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "phone_number",
+                                    "otp"
+                                ],
+                                "properties": {
+                                    "phone_number": {
+                                        "description": "User's phone number",
+                                        "type": "string",
+                                        "format": "phone_number",
+                                        "example": "08012345678"
+                                    },
+                                    "otp": {
+                                        "description": "OTP sent to the user's phone number",
+                                        "type": "string",
+                                        "format": "otp",
+                                        "example": "1111"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OTP verified successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "OTP verified successfully"
+                                        },
+                                        "token": {
+                                            "type": "string",
+                                            "example": "abc123"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Invalid OTP"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    }
+                }
+            }
+        },
+        "/api/resend-otp": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Resend OTP",
+                "operationId": "resendOtp",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "phone_number"
+                                ],
+                                "properties": {
+                                    "phone_number": {
+                                        "description": "User's phone number",
+                                        "type": "string",
+                                        "format": "phone_number",
+                                        "example": "08012345678"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OTP resent successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "OTP resent successfully"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Resend not allowed at this time"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    }
+                }
+            }
+        },
+        "/api/login": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Login a user",
+                "operationId": "loginUser",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "phone_number",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "phone_number": {
+                                        "description": "User's phone number",
+                                        "type": "string",
+                                        "format": "phone_number",
+                                        "example": "08012345678"
+                                    },
+                                    "password": {
+                                        "description": "User's password",
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login successful",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "token": {
+                                            "type": "string",
+                                            "example": "abc123"
+                                        },
+                                        "user": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Invalid credentials",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Invalid credentials"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/update-password": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Create Password",
+                "operationId": "createPassword",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "phone_number",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "phone_number": {
+                                        "description": "User's phone number",
+                                        "type": "string",
+                                        "format": "phone_number",
+                                        "example": "08012345678"
+                                    },
+                                    "password": {
+                                        "description": "User's password",
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Password updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Password updated successfully"
+                                        },
+                                        "token": {
+                                            "type": "string",
+                                            "example": "abc123"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Invalid credentials",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Invalid credentials"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request"
+                    }
+                }
+            }
+        },
+        "/api/rewards": {
+            "get": {
+                "tags": [
+                    "Rewards"
+                ],
+                "summary": "Get the rewards for the authenticated user",
+                "operationId": "0e90644a33fd2077de567b3d46696d5a",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "properties": {
+                                                "total_rewards": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "amount": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "title": {
+                                                                "type": "string"
+                                                            },
+                                                            "amount": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        {
+                                            "properties": {
+                                                "total_rewards": {
+                                                    "type": "string",
+                                                    "example": "0.00"
+                                                },
+                                                "amount": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "title": {
+                                                                "type": "string"
+                                                            },
+                                                            "amount": {
+                                                                "type": "string",
+                                                                "example": "0.00"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No rewards found"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Rewards"
+                ],
+                "summary": "Add or update the rewards for the authenticated user",
+                "operationId": "bd95a311a20ad705f262a4670b2793a8",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "total_rewards": {
+                                        "type": "number",
+                                        "format": "float"
+                                    },
+                                    "cashback": {
+                                        "type": "number",
+                                        "format": "float"
+                                    },
+                                    "referrals": {
+                                        "type": "number",
+                                        "format": "float"
+                                    },
+                                    "promotions": {
+                                        "type": "number",
+                                        "format": "float"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Rewards updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "reward": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "user_id": {
+                                                    "type": "integer"
+                                                },
+                                                "total_rewards": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "cashback": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "referrals": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "promotions": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "created_at": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                },
+                                                "updated_at": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "wallet": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "user_id": {
+                                                    "type": "integer"
+                                                },
+                                                "cash_balance": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "rewards_balance": {
+                                                    "type": "number",
+                                                    "format": "float"
+                                                },
+                                                "created_at": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                },
+                                                "updated_at": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/rewards/history": {
+            "get": {
+                "tags": [
+                    "Rewards"
+                ],
+                "summary": "Get the rewards history for the authenticated user",
+                "operationId": "f9d149fc50aadc3d0a08d2ec7600516e",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "id": {
+                                                "type": "integer"
+                                            },
+                                            "user_id": {
+                                                "type": "integer"
+                                            },
+                                            "total_rewards": {
+                                                "type": "number",
+                                                "format": "float"
+                                            },
+                                            "cashback": {
+                                                "type": "number",
+                                                "format": "float"
+                                            },
+                                            "referrals": {
+                                                "type": "number",
+                                                "format": "float"
+                                            },
+                                            "promotions": {
+                                                "type": "number",
+                                                "format": "float"
+                                            },
+                                            "created_at": {
+                                                "type": "string",
+                                                "format": "date-time"
+                                            },
+                                            "updated_at": {
+                                                "type": "string",
+                                                "format": "date-time"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No rewards history found"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/wallet": {
+            "get": {
+                "tags": [
+                    "Wallet"
+                ],
+                "summary": "Get wallet balances",
+                "operationId": "5002bde6efb0fc362674956ec45e68d9",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "available_balance": {
+                                            "type": "number",
+                                            "format": "float"
+                                        },
+                                        "cash_balance": {
+                                            "type": "number",
+                                            "format": "float"
+                                        },
+                                        "reward_balance": {
+                                            "type": "number",
+                                            "format": "float"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/wallet/add-funds": {
+            "post": {
+                "tags": [
+                    "Wallet"
+                ],
+                "summary": "Add funds to wallet",
+                "operationId": "b5c0ffa98a3f730a12e11fe8d0b950a4",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "amount": {
+                                        "type": "number",
+                                        "format": "float"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "cash",
+                                            "rewards"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Funds added successfully"
+                    },
+                    "400": {
+                        "description": "Invalid input"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/wallet/withdraw": {
+            "post": {
+                "tags": [
+                    "Wallet"
+                ],
+                "summary": "Withdraw funds from wallet",
+                "operationId": "23d9b2a0bb66380bcfc10b079dd776cf",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "amount": {
+                                        "type": "number",
+                                        "format": "float"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "cash",
+                                            "rewards"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Funds withdrawn successfully"
+                    },
+                    "400": {
+                        "description": "Insufficient balance"
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        },
+        "/api/wallet/transactions": {
+            "get": {
+                "tags": [
+                    "Wallet"
+                ],
+                "summary": "Get wallet transactions",
+                "operationId": "aae0372489fd3635aa23dc474f2b5ac7",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Transaction"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Wallet": {
+                "title": "Wallet",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "user_id": {
+                        "type": "integer",
+                        "example": 123
+                    },
+                    "balance": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 100.5
+                    },
+                    "currency": {
+                        "type": "string",
+                        "example": "USD"
+                    }
+                },
+                "type": "object"
+            },
+            "InvestmentRequest": {
+                "required": [
+                    "user_id",
+                    "farm_id",
+                    "amount"
+                ],
+                "properties": {
+                    "user_id": {
+                        "description": "ID of the user making the investment",
+                        "type": "integer"
+                    },
+                    "farm_id": {
+                        "description": "ID of the farm being invested in",
+                        "type": "integer"
+                    },
+                    "amount": {
+                        "description": "Amount of the investment",
+                        "type": "number",
+                        "format": "float"
+                    }
+                },
+                "type": "object"
+            },
+            "ValidationError": {
+                "properties": {
+                    "message": {
+                        "description": "Error message",
+                        "type": "string"
+                    },
+                    "errors": {
+                        "description": "Validation errors",
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "FarmConfigurationResource": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "John Doe's Farm"
+                    },
+                    "investment_percentage": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 15.5
+                    },
+                    "investment_period": {
+                        "type": "integer",
+                        "example": 12
+                    },
+                    "min_investment_amount": {
+                        "type": "number",
+                        "format": "float",
+                        "example": 1000
+                    },
+                    "is_active": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                },
+                "type": "object"
+            },
+            "Investment": {
+                "properties": {
+                    "id": {
+                        "description": "ID of the investment",
+                        "type": "integer"
+                    },
+                    "user_id": {
+                        "description": "ID of the user who made the investment",
+                        "type": "integer"
+                    },
+                    "farm_id": {
+                        "description": "ID of the farm being invested in",
+                        "type": "integer"
+                    },
+                    "amount": {
+                        "description": "Amount of the investment",
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "created_at": {
+                        "description": "Timestamp when the investment was created",
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "description": "Timestamp when the investment was last updated",
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "type": "object"
+            },
+            "Project": {
+                "title": "Project",
+                "description": "Project model",
+                "properties": {
+                    "id": {
+                        "description": "Project ID",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "name": {
+                        "description": "Project name",
+                        "type": "string",
+                        "example": "Project 1"
+                    },
+                    "location": {
+                        "description": "Project location",
+                        "type": "string",
+                        "example": "Lagos"
+                    },
+                    "size": {
+                        "description": "Project size",
+                        "type": "string",
+                        "example": "1000"
+                    },
+                    "funding": {
+                        "description": "Project funding",
+                        "type": "string",
+                        "example": "1000000"
+                    },
+                    "annual_return": {
+                        "description": "Project annual return",
+                        "type": "string",
+                        "example": "100000"
+                    },
+                    "gross_yield": {
+                        "description": "Project gross yield",
+                        "type": "string",
+                        "example": "100000"
+                    },
+                    "net_yield": {
+                        "description": "Project net yield",
+                        "type": "string",
+                        "example": "100000"
+                    }
+                },
+                "type": "object"
+            },
+            "Transaction": {
+                "title": "Transaction",
+                "required": [
+                    "wallet_id",
+                    "amount",
+                    "type",
+                    "description"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "wallet_id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "credit",
+                            "debit"
+                        ]
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "type": "object"
+            },
+            "User": {
+                "title": "User",
+                "description": "User model",
+                "properties": {
+                    "id": {
+                        "description": "User ID",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "name": {
+                        "description": "User name",
+                        "type": "string",
+                        "example": "John Doe"
+                    },
+                    "email": {
+                        "description": "User email",
+                        "type": "string",
+                        "format": "email",
+                        "example": "johndoe@example.com"
+                    },
+                    "phone_number": {
+                        "description": "User phone number",
+                        "type": "string",
+                        "example": "08012345678"
+                    },
+                    "user_type": {
+                        "description": "User type",
+                        "type": "string",
+                        "example": "customer"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "Bearer": {
+                "type": "apiKey",
+                "description": "Enter your Bearer token in the format **Bearer &lt;token&gt;**",
+                "name": "Authorization",
+                "in": "header"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "FarmConfigurations",
+            "description": "FarmConfigurations"
+        },
+        {
+            "name": "Farm",
+            "description": "Farm"
+        },
+        {
+            "name": "Investments",
+            "description": "Investments"
+        },
+        {
+            "name": "Projects",
+            "description": "Projects"
+        },
+        {
+            "name": "Authentication",
+            "description": "Authentication"
+        },
+        {
+            "name": "Rewards",
+            "description": "Rewards"
+        },
+        {
+            "name": "Wallet",
+            "description": "Wallet"
+        }
+    ],
+    "security": [
+        {
+            "Bearer": []
+        }
+    ]
+}
