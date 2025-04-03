@@ -48,6 +48,10 @@ return [
             'driver' => 'passport',
             'provider' => 'admins',
         ],
+        'business' => [
+            'driver' => 'passport',
+            'provider' => 'business_users',
+        ],
     ],
 
     /*
@@ -72,14 +76,16 @@ return [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
         ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
         'admins' => [
             'driver' => 'eloquent',
             'model' => App\Models\Admin::class,
+        ],
+        'business_users' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\User::class,
+            'conditions' => [
+                'business_id' => '!null'
+            ],
         ],
     ],
 
@@ -105,6 +111,12 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
+            'table' => 'password_reset_tokens',
+            'expire' => 60,
+            'throttle' => 60,
+        ],
+        'business_users' => [
+            'provider' => 'business_users',
             'table' => 'password_reset_tokens',
             'expire' => 60,
             'throttle' => 60,

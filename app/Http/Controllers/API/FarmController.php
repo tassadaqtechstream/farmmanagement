@@ -286,44 +286,35 @@ class FarmController extends BaseController
     public function getFarmStatistics()
     {
         // Fetch all user farms
-        $userFarms = UserFarm::where('user_id',Auth::user()->id)->get();
+        $userFarms = UserFarm::where('user_id', Auth::id())->get();
 
         // Calculate total farms and total acres of land
         $totalFarms = $userFarms->count();
-        $totalAcres = $userFarms->sum('size'); // Assuming `land_size` exists in UserFarm
+        $totalAcres = $userFarms->sum('size'); // Assuming `size` is the correct field name
 
         // Group by crop and calculate acres
-        $cropStats = $userFarms->groupBy('crop')->map(function ($farms, $crop) {
-            return [
-                'crop' => $crop,
-                'acres' => $farms->sum('size')
-            ];
+        $cropStats = $userFarms->groupBy('crop')->mapWithKeys(function ($farms, $crop) {
+            return [$crop => $farms->sum('size')];
         });
 
-        // Fill missing crop types with 0 acres
-        $cropsEnum =Crop::cases();
-
-        $cropsFormatted = array_map(function ($crop) use ($cropStats) {
-            $size = 0; // Default value
-            foreach ($cropStats as $cropData) {
-                if ($cropData['crop'] === $crop) {
-                    $size = $cropData['size'];
-                    break;
-                }
-            }
+        // Fetch all possible crop types
+        $cropsEnum = Crop::cases(); // Assuming Crop is an Enum
+         
+        // Format crops data
+        $cropsFormatted = collect($cropsEnum)->map(function ($crop) use ($cropStats) {
             return [
-                'label' => $crop,
-                'value' => $size,
+                'label' => $crop->value, // Assuming the Enum uses a `value` property
+                'value' => $cropStats->get($crop->value, 0), // Fetch acres or default to 0
             ];
-        }, $cropsEnum);
+        })->values();
 
         return response()->json([
             'total_farms' => $totalFarms,
             'total_land' => $totalAcres,
             'crops' => $cropsFormatted,
         ]);
-
     }
+
 
 
 }

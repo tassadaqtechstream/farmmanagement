@@ -19,6 +19,8 @@ use Carbon\Carbon;
 use App\Http\Controllers\API\ProjectController;
 use \App\Http\Controllers\API\RolesController;
 use \App\Http\Controllers\API\UserController;
+use \App\Http\Controllers\API\B2BController;
+use \App\Http\Controllers\API\CategoryController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -97,7 +99,58 @@ Route::middleware('auth:admin')->prefix('admin/')->group(function () {
             ]
         ]);
     });
+    Route::prefix('products')->group(function () {
+        Route::post('/', [ProductController::class, 'index']);
+        Route::post('/add', [ProductController::class, 'store']);
+        Route::get('/{id}', [ProductController::class, 'show']);
+        Route::put('/{id}', [ProductController::class, 'update']);
+        Route::delete('/{id}', [ProductController::class, 'destroy']);
 
+        // Stock management
+        Route::patch('/{id}/stock', [ProductController::class, 'updateStock']);
+
+        // B2B settings
+        Route::patch('/{id}/b2b', [ProductController::class, 'updateB2BSettings']);
+
+        // Restore soft deleted product
+        Route::patch('/{id}/restore', [ProductController::class, 'restore']);
+
+        // Force delete product
+        Route::delete('/{id}/force', [ProductController::class, 'forceDelete']);
+
+        // Product bulk operations
+        Route::post('/bulk-update', [ProductController::class, 'bulkUpdate']);
+        Route::post('/bulk-delete', [ProductController::class, 'bulkDelete']);
+
+        // Product import/export
+        Route::post('/import', [ProductController::class, 'import']);
+        Route::get('/export', [ProductController::class, 'export']);
+    });
+
+    // Categories
+    Route::prefix('categories')->group(function () {
+        Route::POST('/', [CategoryController::class, 'index']);
+        Route::get('/tree', [CategoryController::class, 'tree']);
+        Route::post('/add', [CategoryController::class, 'store']);
+        Route::get('/{id}', [CategoryController::class, 'show']);
+        Route::put('/{id}', [CategoryController::class, 'update']);
+        Route::delete('/{id}', [CategoryController::class, 'destroy']);
+
+        // Category sort order (batch update)
+        Route::post('/sort', [CategoryController::class, 'updateSortOrder']);
+
+        // Get products in a category
+        Route::get('/{id}/products', [CategoryController::class, 'getCategoryProducts']);
+
+        // Toggle B2B visibility
+        Route::patch('/{id}/b2b-visibility', [CategoryController::class, 'toggleB2BVisibility']);
+
+        // Move or copy products between categories
+        Route::post('/move-products', [CategoryController::class, 'moveProducts']);
+    });
+
+    // Get product attributes
+    Route::get('/product-attributes', [ProductController::class, 'getAttributes']);
     Route::get('/users-with-wallets', [WalletController::class, 'getUsersWithWallets']);
     Route::post('/wallet/add-funds', [WalletController::class, 'addFunds']);
     Route::post('/wallet/withdraw', [WalletController::class, 'withdrawFunds']);
@@ -112,4 +165,43 @@ Route::get('/send-otp', function () {
 
     return 'OTP sent successfully!';
 });
+Route::prefix('b2b')->group(function () {
+    // Business registration
+    Route::post('/register', [B2BController::class, 'registerBusiness']);
 
+    // Authentication
+    Route::post('/login', [AuthController::class, 'businessLogin']);
+    Route::post('/password/reset', [AuthController::class, 'resetPassword']);
+});
+
+Route::middleware(['auth:sanctum', 'business.approved'])->prefix('b2b')->group(function () {
+    // Business profile
+    Route::get('/profile', [B2BController::class, 'getBusinessProfile']);
+    Route::put('/profile', [B2BController::class, 'updateBusinessProfile']);
+
+    // Business users management
+    Route::get('/users', [B2BController::class, 'getBusinessUsers']);
+    Route::post('/users', [B2BController::class, 'addBusinessUser']);
+    Route::put('/users/{id}', [B2BController::class, 'updateBusinessUser']);
+    Route::delete('/users/{id}', [B2BController::class, 'removeBusinessUser']);
+
+    // Products
+    Route::get('/catalog', [B2BController::class, 'getBusinessCatalog']);
+    Route::get('/products/{id}', [B2BController::class, 'getProductDetails']);
+
+    // Orders
+    Route::post('/orders', [B2BController::class, 'placeOrder']);
+    Route::get('/orders', [B2BController::class, 'getOrderHistory']);
+    Route::get('/orders/{id}', [B2BController::class, 'getOrderDetails']);
+    Route::get('/orders/{id}/invoice', [B2BController::class, 'getOrderInvoice']);
+
+    // Quotes
+    Route::post('/quotes', [B2BController::class, 'requestQuote']);
+    Route::get('/quotes', [B2BController::class, 'getQuotes']);
+    Route::get('/quotes/{id}', [B2BController::class, 'getQuoteDetails']);
+    Route::post('/quotes/{id}/accept', [B2BController::class, 'acceptQuote']);
+
+    // Reports
+    Route::get('/reports/orders', [B2BController::class, 'getOrdersReport']);
+    Route::get('/reports/spending', [B2BController::class, 'getSpendingReport']);
+});
