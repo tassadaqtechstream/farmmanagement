@@ -21,7 +21,6 @@ use \App\Http\Controllers\API\RolesController;
 use \App\Http\Controllers\API\UserController;
 use \App\Http\Controllers\API\B2BController;
 use \App\Http\Controllers\API\CategoryController;
-use App\Http\Controllers\API\AuthController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -166,15 +165,27 @@ Route::get('/send-otp', function () {
 
     return 'OTP sent successfully!';
 });
+
 Route::prefix('b2b')->group(function () {
     // Business registration
     Route::post('/register', [B2BController::class, 'registerBusiness']);
 
     // Authentication
     Route::post('/login', [AuthController::class, 'businessLogin']);
+    Route::get('/products/featured', [ProductController::class, 'getAllFeatureProducts']);
+    Route::get('/products/{id}', [ProductController::class, 'getProductDetail']);
+
     Route::post('/password/reset', [AuthController::class, 'resetPassword']);
+    Route::post('/orders', [B2BController::class, 'placeOrder']);
+
 });
 
+Route::get('/all-categories', [CategoryController::class, 'tree']);
+Route::get('/get-filter-products', [ProductController::class, 'getProductsByCategory']);
+/*Route::get('/all-categories', [ProductController::class, 'getAllCategories']);*/
+Route::get('/subcategories', [ProductController::class, 'getSubcategories']);
+
+Route::get('/category/{slug}/{subCategorySlug?}', [ProductController::class, 'getBySlug']);
 Route::get('/all-categories', [CategoryController::class, 'tree']);
 Route::get('/get-filter-products', [ProductController::class, 'getProductsByCategory']);
 /*Route::get('/all-categories', [ProductController::class, 'getAllCategories']);*/
@@ -193,10 +204,8 @@ Route::middleware(['auth:sanctum', 'business.approved'])->prefix('b2b')->group(f
 
     // Products
     Route::get('/catalog', [B2BController::class, 'getBusinessCatalog']);
-    Route::get('/products/{id}', [B2BController::class, 'getProductDetails']);
 
     // Orders
-    Route::post('/orders', [B2BController::class, 'placeOrder']);
     Route::get('/orders', [B2BController::class, 'getOrderHistory']);
     Route::get('/orders/{id}', [B2BController::class, 'getOrderDetails']);
     Route::get('/orders/{id}/invoice', [B2BController::class, 'getOrderInvoice']);

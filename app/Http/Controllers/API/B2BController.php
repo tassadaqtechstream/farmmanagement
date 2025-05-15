@@ -178,31 +178,59 @@ class B2BController extends Controller
      */
     public function placeOrder(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        // Determine if this is a guest or authenticated user
+        $isGuest = !auth()->check();
+        $user = $isGuest ? null : $request->user();
+        $isB2BOrder = !$isGuest && $user->business_id;
+
+        // Different validation rules based on user type
+        $validationRules = [
             'products' => 'required|array',
             'products.*.id' => 'required|exists:products,id',
             'products.*.quantity' => 'required|integer|min:1',
-            'purchase_order_number' => 'required|string',
             'shipping_address' => 'required|string',
             'billing_address' => 'required|string',
-            'payment_method' => 'required|string|in:credit,invoice,bank_transfer',
+            'payment_method' => 'required|string',
             'shipping_method' => 'required|string',
-        ]);
+        ];
+
+        // Additional validation for guest users
+        if ($isGuest) {
+            $validationRules = array_merge($validationRules, [
+                'guest_email' => 'required|email',
+                'guest_name' => 'required|string',
+                'guest_phone' => 'required|string',
+                'payment_method' => 'required|string|in:credit,bank_transfer', // No invoice option for guests
+            ]);
+        }
+
+        // Additional validation for B2B users
+        if ($isB2BOrder) {
+            $validationRules = array_merge($validationRules, [
+                'purchase_order_number' => 'required|string',
+                'payment_method' => 'required|string|in:credit,invoice,bank_transfer',
+            ]);
+        }
+
+        $validator = Validator::make($request->all(), $validationRules);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $user = $request->user();
-        $business = Business::find($user->business_id);
+        // Business checks for B2B orders
+        $business = null;
+        if ($isB2BOrder) {
+            $business = Business::find($user->business_id);
 
-        if (!$business || $business->status !== 'approved') {
-            return response()->json(['message' => 'Unauthorized or pending approval'], 403);
-        }
+            if (!$business || $business->status !== 'approved') {
+                return response()->json(['message' => 'Unauthorized or pending approval'], 403);
+            }
 
-        // Check if user has permission to place orders
-        if (!$user->hasPermissionTo('place b2b orders', 'api')) {
-            return response()->json(['message' => 'You do not have permission to place orders'], 403);
+            // Check if user has permission to place orders
+            if (!$user->hasPermissionTo('place b2b orders', 'api')) {
+                return response()->json(['message' => 'You do not have permission to place orders'], 403);
+            }
         }
 
         // Start a database transaction
@@ -216,27 +244,41 @@ class B2BController extends Controller
             foreach ($request->products as $item) {
                 $product = Product::findOrFail($item['id']);
 
-                // Check if product is available for B2B
-                if (!$product->is_b2b_available) {
-                    throw new \Exception("Product {$product->name} is not available for B2B orders");
+                // B2B specific checks
+                if ($isB2BOrder) {
+                    // Check if product is available for B2B
+                    if (!$product->is_b2b_available) {
+                        throw new \Exception("Product {$product->name} is not available for B2B orders");
+                    }
+
+                    // Check minimum order quantity
+                    if ($item['quantity'] < $product->b2b_min_quantity) {
+                        throw new \Exception("Minimum order quantity for {$product->name} is {$product->b2b_min_quantity}");
+                    }
+                } else {
+                    // Check if product is available for regular customers
+                    if (!$product->is_active) {
+                        throw new \Exception("Product {$product->name} is not available");
+                    }
                 }
 
-                // Check minimum order quantity
-                if ($item['quantity'] < $product->b2b_min_quantity) {
-                    throw new \Exception("Minimum order quantity for {$product->name} is {$product->b2b_min_quantity}");
-                }
-
-                // Check inventory
+                // Check inventory for all orders
                 if ($product->stock < $item['quantity']) {
                     throw new \Exception("Insufficient stock for {$product->name}");
                 }
 
-                // Get business-specific price if available
-                $businessPrice = $product->businessPricing()
-                    ->where('business_id', $business->id)
-                    ->first();
+                // Determine price based on user type
+                $price = $product->price; // Default retail price
 
-                $price = $businessPrice ? $businessPrice->price : $product->b2b_price;
+                if ($isB2BOrder) {
+                    // Get business-specific price if available
+                    $businessPrice = $product->businessPricing()
+                        ->where('business_id', $business->id)
+                        ->first();
+
+                    $price = $businessPrice ? $businessPrice->price : $product->b2b_price;
+                }
+
                 $itemTotal = $price * $item['quantity'];
                 $total += $itemTotal;
 
@@ -253,7 +295,7 @@ class B2BController extends Controller
             }
 
             // Check if the business is within credit limit for invoice payments
-            if ($request->payment_method === 'invoice') {
+            if ($isB2BOrder && $request->payment_method === 'invoice') {
                 $currentOutstanding = Order::where('business_id', $business->id)
                     ->where('status', 'awaiting_payment')
                     ->sum('total');
@@ -265,20 +307,46 @@ class B2BController extends Controller
                 }
             }
 
-            // Create order
-            $order = Order::create([
-                'business_id' => $business->id,
-                'user_id' => $user->id,
+            // Create order data array
+            $orderData = [
                 'total' => $total,
                 'status' => $request->payment_method === 'invoice' ? 'awaiting_payment' : 'processing',
-                'purchase_order_number' => $request->purchase_order_number,
                 'shipping_address' => $request->shipping_address,
                 'billing_address' => $request->billing_address,
                 'payment_method' => $request->payment_method,
                 'shipping_method' => $request->shipping_method,
-                'payment_terms' => $business->payment_terms ?? 'net_30',
                 'notes' => $request->notes,
-            ]);
+                'is_guest_order' => $isGuest,
+            ];
+
+            // Add B2B specific data
+            if ($isB2BOrder) {
+                $orderData = array_merge($orderData, [
+                    'business_id' => $business->id,
+                    'user_id' => $user->id,
+                    'purchase_order_number' => $request->purchase_order_number,
+                    'payment_terms' => $business->payment_terms ?? 'net_30',
+                ]);
+            }
+            // Add guest specific data
+            else if ($isGuest) {
+                $orderData = array_merge($orderData, [
+                    'guest_email' => $request->guest_email,
+                    'guest_name' => $request->guest_name,
+                    'guest_phone' => $request->guest_phone,
+                    'payment_terms' => 'immediate',
+                ]);
+            }
+            // Add regular user data
+            else {
+                $orderData = array_merge($orderData, [
+                    'user_id' => $user->id,
+                    'payment_terms' => 'immediate',
+                ]);
+            }
+
+            // Create order
+            $order = Order::create($orderData);
 
             // Create order items
             foreach ($orderItems as $item) {
@@ -289,7 +357,8 @@ class B2BController extends Controller
             $order->statusHistory()->create([
                 'status' => $order->status,
                 'comment' => 'Order created',
-                'user_id' => $user->id
+                'user_id' => $isGuest ? null : $user->id,
+                'created_by_type' => $isGuest ? 'guest' : 'user',
             ]);
 
             // Process payment if not invoice
@@ -306,13 +375,13 @@ class B2BController extends Controller
             // Commit transaction
             DB::commit();
 
-            // Log activity using Spatie Activity Log if installed
-            if (class_exists('\Spatie\Activitylog\Models\Activity')) {
+            // Log activity using Spatie Activity Log if installed (only for authenticated users)
+            if (!$isGuest && class_exists('\Spatie\Activitylog\Models\Activity')) {
                 activity()
                     ->performedOn($order)
                     ->causedBy($user)
                     ->withProperties(['order_id' => $order->id, 'total' => $total])
-                    ->log('placed a B2B order');
+                    ->log($isB2BOrder ? 'placed a B2B order' : 'placed an order');
             }
 
             return response()->json([
