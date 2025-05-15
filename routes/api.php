@@ -21,6 +21,7 @@ use \App\Http\Controllers\API\RolesController;
 use \App\Http\Controllers\API\UserController;
 use \App\Http\Controllers\API\B2BController;
 use \App\Http\Controllers\API\CategoryController;
+use \App\Http\Controllers\API\AuthController;
 /*
 |--------------------------------------------------------------------------
 | API Routes

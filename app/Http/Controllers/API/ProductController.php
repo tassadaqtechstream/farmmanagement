@@ -937,12 +937,152 @@ class ProductController extends Controller
         ]);
     }
 
+
     /**
-     * Get products filtered by category and subcategory
+     * Get all categories with their subcategories
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAllCategories()
+    {
+        // Get all parent categories (where parent_id is null)
+        $categories = Category::whereNull('parent_id')
+            ->orderBy('name')
+            ->get();
+
+        // For each parent category, get its children
+        $formattedCategories = $categories->map(function($category) {
+            // Get all subcategories
+            $subcategories = Category::where('parent_id', $category->id)
+                ->orderBy('name')
+                ->get();
+
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+                'slug' => $category->slug,
+                'description' => $category->description,
+                'image_url' => $category->image, // Adjust field name if different
+                'products' => $subcategories->map(function($subcategory) {
+                    return [
+                        'id' => $subcategory->id,
+                        'name' => $subcategory->name,
+                        'slug' => $subcategory->slug,
+                        'commodity_id' => $subcategory->parent_id
+                    ];
+                })
+            ];
+        });
+
+        return response()->json([
+            'data' => $formattedCategories
+        ]);
+    }
+
+    /**
+     * Get subcategories for a specific category
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
+    public function getSubcategories(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'category' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $categorySlug = $request->category;
+
+        // Find the parent category
+        $category = Category::where(function($q) use ($categorySlug) {
+            $q->where('slug', $categorySlug)
+                ->orWhere('name', 'like', "%{$categorySlug}%");
+        })
+            ->whereNull('parent_id')
+            ->first();
+
+        if (!$category) {
+            return response()->json([
+                'error' => 'Category not found',
+                'products' => []
+            ], 404);
+        }
+
+        // Get subcategories
+        $subcategories = Category::where('parent_id', $category->id)
+            ->orderBy('name')
+            ->get()
+            ->map(function($subcategory) {
+                return [
+                    'id' => $subcategory->id,
+                    'name' => $subcategory->name,
+                    'slug' => $subcategory->slug,
+                    'commodity_id' => $subcategory->parent_id
+                ];
+            });
+
+        return response()->json([
+            'name' => $category->name,
+            'slug' => $category->slug,
+            'image_url' => $category->image, // Adjust field name if different
+            'products' => $subcategories
+        ]);
+    }
+
+    /**
+     * Get a specific category by slug with optional subcategory
+     *
+     * @param string $slug
+     * @param string|null $subCategorySlug
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getBySlug($slug, $subCategorySlug = null)
+    {
+        // Find the category by slug
+        $category = Category::where('slug', $slug)
+            ->whereNull('parent_id')
+            ->first();
+
+        if (!$category) {
+            return response()->json([
+                'error' => 'Category not found'
+            ], 404);
+        }
+
+        // Get subcategories
+        $subcategories = Category::where('parent_id', $category->id)->get();
+
+        // If a subcategory slug is provided, filter the results
+        $filteredSubcategory = null;
+        if ($subCategorySlug) {
+            $filteredSubcategory = $subcategories->where('slug', $subCategorySlug)->first();
+        }
+
+        // Format the response
+        $responseData = [
+            'id' => $category->id,
+            'name' => $category->name,
+            'slug' => $category->slug,
+            'description' => $category->description,
+            'image_url' => $category->image, // Adjust field name if needed
+            'products' => $filteredSubcategory ?
+                [$filteredSubcategory] :
+                $subcategories->map(function($subcategory) {
+                    return [
+                        'id' => $subcategory->id,
+                        'name' => $subcategory->name,
+                        'slug' => $subcategory->slug,
+                        'commodity_id' => $subcategory->parent_id
+                    ];
+                })
+        ];
+
+        return response()->json($responseData);
+    }
     public function getProductsByCategory(Request $request)
     {
         try {
@@ -1094,9 +1234,9 @@ class ProductController extends Controller
                 $images = $product->images;
                 $imageUrl = null;
 
-                    $imageUrl = $images->first()
-                        ? url('storage/' . $images->first()->image_path)
-                        : null;;
+                $imageUrl = $images->first()
+                    ? url('storage/' . $images->first()->image_path)
+                    : null;;
 
 
                 return [
@@ -1164,150 +1304,126 @@ class ProductController extends Controller
             ], 500);
         }
     }
+ 
 
-    /**
-     * Get all categories with their subcategories
-     *
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function getAllCategories()
+    public function getAllFeatureProducts()
     {
-        // Get all parent categories (where parent_id is null)
-        $categories = Category::whereNull('parent_id')
-            ->orderBy('name')
+        // Get featured products
+        $featuredProducts = Product::where('is_featured', true)
+            ->where('is_active', true)
+            ->with(['category', 'images'])
             ->get();
 
-        // For each parent category, get its children
-        $formattedCategories = $categories->map(function($category) {
-            // Get all subcategories
-            $subcategories = Category::where('parent_id', $category->id)
-                ->orderBy('name')
-                ->get();
+        // Map to the required format
+        $formattedProducts = $featuredProducts->map(function($product) {
+            // Get the first image or null if none exists
+            $image = $product->images->first() ?
+                url('storage/' . $product->images->first()->image_path) :
+                null;
+
+            // Get the category name
+            $categoryName = $product->category ? $product->category->name : 'uncategorized';
 
             return [
-                'id' => $category->id,
-                'name' => $category->name,
-                'slug' => $category->slug,
-                'description' => $category->description,
-                'image_url' => $category->image, // Adjust field name if different
-                'products' => $subcategories->map(function($subcategory) {
-                    return [
-                        'id' => $subcategory->id,
-                        'name' => $subcategory->name,
-                        'slug' => $subcategory->slug,
-                        'commodity_id' => $subcategory->parent_id
-                    ];
-                })
+                'id' => $product->id,
+                'title' => $product->name,
+                'price' => (string)$product->price,
+                'unit' => $product->weight_unit ?? 'kg',
+                'image' => $image,
+                'category' => strtolower($categoryName),
             ];
         });
 
         return response()->json([
-            'data' => $formattedCategories
+            'status' => 'success',
+            'data' => $formattedProducts
         ]);
     }
 
     /**
-     * Get subcategories for a specific category
+     * Get detailed product information for the frontend
      *
-     * @param Request $request
+     * @param string $id Product ID
      * @return \Illuminate\Http\JsonResponse
      */
-    public function getSubcategories(Request $request)
+    public function getProductDetail($id)
     {
-        $validator = Validator::make($request->all(), [
-            'category' => 'required|string',
-        ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        try {
+            // Fetch the product with all related data
+            $product = Product::with([
+                'category',
+                'images',
+                'variants',
+                'productAttributes.attribute',
+                'productAttributes.attributeValue'
+            ])->findOrFail($id);
 
-        $categorySlug = $request->category;
+            // Format the response to match frontend expectations
+            $formattedProduct = [
+                'id' => $product->id,
+                'name' => $product->name,
+                'category' => $product->category ? $product->category->name : 'Uncategorized',
+                'price' => (float)$product->price,
+                'unit' => $product->weight_unit ?? 'kg',
+                'seller' => $product->brand ?? 'Unknown Seller',
+                'location' => 'Saudi Arabia', // You might want to add a field for this in your DB
+                'rating' => 4.5, // Placeholder - you might implement a reviews system later
+                'reviews' => 0,  // Placeholder - you might implement a reviews system later
+                'availability' => $product->stock > 0 ? 'In Stock' : 'Out of Stock',
+                'organic' => (bool)($product->is_organic ?? false), // Add this field to your products table if needed
+                'minQuantity' => (int)($product->b2b_min_quantity ?? 1),
+                'description' => $product->description ?? '',
+                'short_description' => $product->short_description ?? '',
+                'images' => $product->images->map(function($image) {
+                    return url('storage/' . $image->image_path);
+                })->toArray(),
+                'specifications' => [],
+                'isAuthenticated' => true,
+                'isCompanyMaintained' => (bool)($product->is_company_maintained ?? false),
+                'isPartnerFarm' => (bool)($product->is_partner_farm ?? true),
+                'stock' => (int)$product->stock,
+                'meta' => [
+                    'meta_title' => $product->meta_title,
+                    'meta_description' => $product->meta_description,
+                    'meta_keywords' => $product->meta_keywords,
+                ]
+            ];
 
-        // Find the parent category
-        $category = Category::where(function($q) use ($categorySlug) {
-            $q->where('slug', $categorySlug)
-                ->orWhere('name', 'like', "%{$categorySlug}%");
-        })
-            ->whereNull('parent_id')
-            ->first();
-
-        if (!$category) {
-            return response()->json([
-                'error' => 'Category not found',
-                'products' => []
-            ], 404);
-        }
-
-        // Get subcategories
-        $subcategories = Category::where('parent_id', $category->id)
-            ->orderBy('name')
-            ->get()
-            ->map(function($subcategory) {
-                return [
-                    'id' => $subcategory->id,
-                    'name' => $subcategory->name,
-                    'slug' => $subcategory->slug,
-                    'commodity_id' => $subcategory->parent_id
-                ];
-            });
-
-        return response()->json([
-            'name' => $category->name,
-            'slug' => $category->slug,
-            'image_url' => $category->image, // Adjust field name if different
-            'products' => $subcategories
-        ]);
-    }
-
-    /**
-     * Get a specific category by slug with optional subcategory
-     *
-     * @param string $slug
-     * @param string|null $subCategorySlug
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function getBySlug($slug, $subCategorySlug = null)
-    {
-        // Find the category by slug
-        $category = Category::where('slug', $slug)
-            ->whereNull('parent_id')
-            ->first();
-
-        if (!$category) {
-            return response()->json([
-                'error' => 'Category not found'
-            ], 404);
-        }
-
-        // Get subcategories
-        $subcategories = Category::where('parent_id', $category->id)->get();
-
-        // If a subcategory slug is provided, filter the results
-        $filteredSubcategory = null;
-        if ($subCategorySlug) {
-            $filteredSubcategory = $subcategories->where('slug', $subCategorySlug)->first();
-        }
-
-        // Format the response
-        $responseData = [
-            'id' => $category->id,
-            'name' => $category->name,
-            'slug' => $category->slug,
-            'description' => $category->description,
-            'image_url' => $category->image, // Adjust field name if needed
-            'products' => $filteredSubcategory ?
-                [$filteredSubcategory] :
-                $subcategories->map(function($subcategory) {
-                    return [
-                        'id' => $subcategory->id,
-                        'name' => $subcategory->name,
-                        'slug' => $subcategory->slug,
-                        'commodity_id' => $subcategory->parent_id
+            // Build specifications from product attributes
+            if ($product->productAttributes) {
+                foreach ($product->productAttributes as $attr) {
+                    $formattedProduct['specifications'][] = [
+                        'name' => $attr->attribute->name,
+                        'value' => $attr->attributeValue->value
                     ];
-                })
-        ];
+                }
+            }
 
-        return response()->json($responseData);
+            // Add some default specifications if none exist
+            if (empty($formattedProduct['specifications'])) {
+                $formattedProduct['specifications'] = [
+                    ['name' => 'Weight', 'value' => $product->weight ? $product->weight . ' kg' : 'N/A'],
+                    ['name' => 'Dimensions', 'value' => $product->length && $product->width && $product->height ?
+                        $product->length . ' x ' . $product->width . ' x ' . $product->height . ' cm' : 'N/A'],
+                    ['name' => 'SKU', 'value' => $product->sku],
+                    ['name' => 'Brand', 'value' => $product->brand ?? 'N/A'],
+                    ['name' => 'Origin', 'value' => 'Saudi Arabia'],
+                    ['name' => 'Minimum Order', 'value' => $product->b2b_min_quantity ?? 1 . ' ' . ($product->weight_unit ?? 'kg')],
+                ];
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $formattedProduct
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Product not found',
+                'error' => $e->getMessage()
+            ], 404);
+        }
     }
 }
