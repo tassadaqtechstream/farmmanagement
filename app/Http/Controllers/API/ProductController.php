@@ -10,6 +10,7 @@ use App\Models\ProductAttribute;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductVariant;
 use App\Models\ProductVolumePricing;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -219,19 +220,7 @@ class ProductController extends Controller
                 }
             }
 
-            // Handle volume pricing if provided
-            if ($request->has('volume_pricing') && is_array($request->volume_pricing)) {
-                foreach ($request->volume_pricing as $pricing) {
-                    ProductVolumePricing::create([
-                        'product_id' => $product->id,
-                        'min_quantity' => $pricing['min_quantity'],
-                        'max_quantity' => $pricing['max_quantity'] ?? null,
-                        'price' => $pricing['price'],
-                        'discount_percentage' => isset($pricing['discount_percentage']) ? $pricing['discount_percentage']
-                            : round(($product->price - $pricing['price']) / $product->price * 100, 2),
-                    ]);
-                }
-            }
+
 
             // Handle variants if provided
             if ($request->filled('variants')) {
@@ -284,7 +273,7 @@ class ProductController extends Controller
 
             return response()->json([
                 'message' => 'Product created successfully',
-                'product' => $product->load(['category', 'images', 'categories', 'volumePricing', 'variants'])
+                'product' => $product->load(['category', 'images', 'categories', 'variants'])
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -437,41 +426,7 @@ class ProductController extends Controller
             }
 
             // Update volume pricing if provided
-            if ($request->has('volume_pricing')) {
-                // Get existing pricing IDs
-                $existingIds = $product->volumePricing->pluck('id')->toArray();
-                $updateIds = [];
 
-                foreach ($request->volume_pricing as $pricing) {
-                    if (isset($pricing['id']) && in_array($pricing['id'], $existingIds)) {
-                        // Update existing
-                        ProductVolumePricing::where('id', $pricing['id'])->update([
-                            'min_quantity' => $pricing['min_quantity'],
-                            'max_quantity' => $pricing['max_quantity'] ?? null,
-                            'price' => $pricing['price'],
-                            'discount_percentage' => isset($pricing['discount_percentage']) ? $pricing['discount_percentage']
-                                : round(($product->price - $pricing['price']) / $product->price * 100, 2),
-                        ]);
-                        $updateIds[] = $pricing['id'];
-                    } else {
-                        // Create new
-                        ProductVolumePricing::create([
-                            'product_id' => $product->id,
-                            'min_quantity' => $pricing['min_quantity'],
-                            'max_quantity' => $pricing['max_quantity'] ?? null,
-                            'price' => $pricing['price'],
-                            'discount_percentage' => isset($pricing['discount_percentage']) ? $pricing['discount_percentage']
-                                : round(($product->price - $pricing['price']) / $product->price * 100, 2),
-                        ]);
-                    }
-                }
-
-                // Delete pricing not in the update
-                $deleteIds = array_diff($existingIds, $updateIds);
-                if (!empty($deleteIds)) {
-                    ProductVolumePricing::whereIn('id', $deleteIds)->delete();
-                }
-            }
 
             // Delete images if requested
             if ($request->has('delete_images') && is_array($request->delete_images)) {
@@ -691,16 +646,7 @@ class ProductController extends Controller
                 $product->volumePricing()->delete();
 
                 // Create new volume pricing
-                foreach ($request->volume_pricing as $pricing) {
-                    ProductVolumePricing::create([
-                        'product_id' => $product->id,
-                        'min_quantity' => $pricing['min_quantity'],
-                        'max_quantity' => $pricing['max_quantity'] ?? null,
-                        'price' => $pricing['price'],
-                        'discount_percentage' => isset($pricing['discount_percentage']) ? $pricing['discount_percentage']
-                            : round(($product->price - $pricing['price']) / $product->price * 100, 2),
-                    ]);
-                }
+
             }
 
             $product->save();
@@ -989,5 +935,379 @@ class ProductController extends Controller
             'count' => $products->count(),
             'download_url' => url('api/admin/downloads/' . $filename)
         ]);
+    }
+
+    /**
+     * Get products filtered by category and subcategory
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProductsByCategory(Request $request)
+    {
+        try {
+            // More comprehensive validation
+            $validator = Validator::make($request->all(), [
+                'category' => 'sometimes|string|max:255',
+                'sub_category' => 'sometimes|string|max:255',
+                'brand' => 'sometimes|string|max:255',
+                'min_price' => 'sometimes|numeric|min:0',
+                'max_price' => 'sometimes|numeric|min:0',
+                'sort_by' => 'sometimes|in:id,name,price,created_at',
+                'sort_direction' => 'sometimes|in:asc,desc'
+            ]);
+
+            // Detailed error handling
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation Error',
+                    'errors' => $validator->errors(),
+                    'input' => $request->all()
+                ], 422);
+            }
+
+            // Log incoming request parameters for debugging
+            \Log::info('Product Filter Request', [
+                'parameters' => $request->all()
+            ]);
+
+            $query = Product::query();
+            $mainCategory = null;
+            $subCategory = null;
+
+            // Detailed category filtering with extensive logging
+            if ($request->has('category')) {
+                $categorySlug = $request->category;
+                \Log::info('Searching for main category', ['slug' => $categorySlug]);
+
+                $mainCategory = Category::where(function($q) use ($categorySlug) {
+                    $q->where('slug', $categorySlug)
+                        ->orWhere('name', 'like', "%{$categorySlug}%");
+                })
+                    ->whereNull('parent_id')
+                    ->first();
+
+                \Log::info('Main Category Found', [
+                    'category' => $mainCategory ? $mainCategory->toArray() : 'Not Found'
+                ]);
+
+                if (!$mainCategory) {
+                    \Log::warning('No main category found', [
+                        'input_category' => $categorySlug
+                    ]);
+                }
+            }
+
+            // Subcategory filtering with more detailed checks
+            if ($request->has('sub_category')) {
+                $subcategorySlug = $request->sub_category;
+                \Log::info('Searching for subcategory', ['slug' => $subcategorySlug]);
+
+                $subcategoryQuery = Category::where(function($q) use ($subcategorySlug) {
+                    $q->where('slug', $subcategorySlug)
+                        ->orWhere('name', 'like', "%{$subcategorySlug}%");
+                });
+
+                if ($mainCategory) {
+                    $subcategoryQuery->where('parent_id', $mainCategory->id);
+                } else {
+                    $subcategoryQuery->whereNotNull('parent_id');
+                }
+
+                $subCategory = $subcategoryQuery->first();
+
+                \Log::info('Subcategory Search', [
+                    'subcategory' => $subCategory ? $subCategory->toArray() : 'Not Found'
+                ]);
+
+                if (!$subCategory) {
+                    \Log::warning('No subcategory found', [
+                        'input_subcategory' => $subcategorySlug
+                    ]);
+                }
+            }
+
+            // If no category or subcategory is found, return helpful error
+            if (!$mainCategory && !$subCategory) {
+                return response()->json([
+                    'message' => 'No matching categories found',
+                    'input' => [
+                        'category' => $request->category ?? null,
+                        'sub_category' => $request->sub_category ?? null
+                    ]
+                ], 404);
+            }
+
+            // Apply category filtering
+            if ($mainCategory) {
+                if (!$request->has('sub_category')) {
+                    $categoryIds = [$mainCategory->id];
+                    $subcategoryIds = Category::where('parent_id', $mainCategory->id)
+                        ->pluck('id')
+                        ->toArray();
+
+                    if (!empty($subcategoryIds)) {
+                        $categoryIds = array_merge($categoryIds, $subcategoryIds);
+                    }
+
+                    $query->whereIn('category_id', $categoryIds);
+                }
+            }
+
+            // Apply subcategory filtering
+            if ($subCategory) {
+                $query->where('category_id', $subCategory->id);
+            }
+
+            // Additional filters
+            if ($request->has('brand')) {
+                $query->where('brand', $request->brand);
+            }
+
+            if ($request->has('min_price')) {
+                $query->where('price', '>=', $request->min_price);
+            }
+
+            if ($request->has('max_price')) {
+                $query->where('price', '<=', $request->max_price);
+            }
+
+            // Default to active products
+            $query->where('is_active', true);
+
+            // Apply sorting
+            $sortField = $request->input('sort_by', 'created_at');
+            $sortDirection = $request->input('sort_direction', 'desc');
+            $query->orderBy($sortField, $sortDirection);
+
+            // Include product images
+            $query->with(['images']);
+
+            // Get products
+            $products = $query->get();
+
+
+
+            // Map products to the expected frontend format
+            $mappedProducts = $products->map(function($product) {
+                // Handle image selection with multiple images
+                $images = $product->images;
+                $imageUrl = null;
+
+                    $imageUrl = $images->first()
+                        ? url('storage/' . $images->first()->image_path)
+                        : null;;
+
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'price' => (string)($product->price ?? '1.450'),
+                    'weight' => $product->weight ?? '1000.0 MT',
+                    'incoterm' => 'FCA', // Default incoterm
+                    'country' => 'UA',   // Default country
+                    'verified' => (bool)$product->is_active,
+                    'image' => $imageUrl,
+                    'expirationDate' => Carbon::now()->addDays(7)->toDateString(),
+
+                ];
+            });
+
+            // Additional error handling for empty result set
+            if ($mappedProducts->isEmpty()) {
+                return response()->json([
+                    'message' => 'No products found matching the specified criteria',
+                    'input' => $request->all(),
+                    'data' => [],
+                    'meta' => [
+                        'total_count' => 0
+                    ]
+                ], 200);
+            }
+
+            // Category information for response
+            $categoryInfo = [
+                'category' => $mainCategory ? [
+                    'id' => $mainCategory->id,
+                    'name' => $mainCategory->name,
+                    'slug' => $mainCategory->slug
+                ] : null,
+                'sub_category' => $subCategory ? [
+                    'id' => $subCategory->id,
+                    'name' => $subCategory->name,
+                    'slug' => $subCategory->slug,
+                    'parent_id' => $subCategory->parent_id
+                ] : null
+            ];
+
+            return response()->json([
+                'data' => $mappedProducts,
+                'meta' => [
+                    'total_count' => $mappedProducts->count(),
+                    'min_price' => $products->min('price') ?? 0,
+                    'max_price' => $products->max('price') ?? 0,
+                    'brands' => $products->pluck('brand')->unique()->filter()->values(),
+                    'category_info' => $categoryInfo
+                ]
+            ]);
+        } catch (\Exception $e) {
+            // Catch and log any unexpected errors
+            \Log::error('Product Filter Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'input' => $request->all()
+            ]);
+
+            return response()->json([
+                'message' => 'An unexpected error occurred',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all categories with their subcategories
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAllCategories()
+    {
+        // Get all parent categories (where parent_id is null)
+        $categories = Category::whereNull('parent_id')
+            ->orderBy('name')
+            ->get();
+
+        // For each parent category, get its children
+        $formattedCategories = $categories->map(function($category) {
+            // Get all subcategories
+            $subcategories = Category::where('parent_id', $category->id)
+                ->orderBy('name')
+                ->get();
+
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+                'slug' => $category->slug,
+                'description' => $category->description,
+                'image_url' => $category->image, // Adjust field name if different
+                'products' => $subcategories->map(function($subcategory) {
+                    return [
+                        'id' => $subcategory->id,
+                        'name' => $subcategory->name,
+                        'slug' => $subcategory->slug,
+                        'commodity_id' => $subcategory->parent_id
+                    ];
+                })
+            ];
+        });
+
+        return response()->json([
+            'data' => $formattedCategories
+        ]);
+    }
+
+    /**
+     * Get subcategories for a specific category
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getSubcategories(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'category' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $categorySlug = $request->category;
+
+        // Find the parent category
+        $category = Category::where(function($q) use ($categorySlug) {
+            $q->where('slug', $categorySlug)
+                ->orWhere('name', 'like', "%{$categorySlug}%");
+        })
+            ->whereNull('parent_id')
+            ->first();
+
+        if (!$category) {
+            return response()->json([
+                'error' => 'Category not found',
+                'products' => []
+            ], 404);
+        }
+
+        // Get subcategories
+        $subcategories = Category::where('parent_id', $category->id)
+            ->orderBy('name')
+            ->get()
+            ->map(function($subcategory) {
+                return [
+                    'id' => $subcategory->id,
+                    'name' => $subcategory->name,
+                    'slug' => $subcategory->slug,
+                    'commodity_id' => $subcategory->parent_id
+                ];
+            });
+
+        return response()->json([
+            'name' => $category->name,
+            'slug' => $category->slug,
+            'image_url' => $category->image, // Adjust field name if different
+            'products' => $subcategories
+        ]);
+    }
+
+    /**
+     * Get a specific category by slug with optional subcategory
+     *
+     * @param string $slug
+     * @param string|null $subCategorySlug
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getBySlug($slug, $subCategorySlug = null)
+    {
+        // Find the category by slug
+        $category = Category::where('slug', $slug)
+            ->whereNull('parent_id')
+            ->first();
+
+        if (!$category) {
+            return response()->json([
+                'error' => 'Category not found'
+            ], 404);
+        }
+
+        // Get subcategories
+        $subcategories = Category::where('parent_id', $category->id)->get();
+
+        // If a subcategory slug is provided, filter the results
+        $filteredSubcategory = null;
+        if ($subCategorySlug) {
+            $filteredSubcategory = $subcategories->where('slug', $subCategorySlug)->first();
+        }
+
+        // Format the response
+        $responseData = [
+            'id' => $category->id,
+            'name' => $category->name,
+            'slug' => $category->slug,
+            'description' => $category->description,
+            'image_url' => $category->image, // Adjust field name if needed
+            'products' => $filteredSubcategory ?
+                [$filteredSubcategory] :
+                $subcategories->map(function($subcategory) {
+                    return [
+                        'id' => $subcategory->id,
+                        'name' => $subcategory->name,
+                        'slug' => $subcategory->slug,
+                        'commodity_id' => $subcategory->parent_id
+                    ];
+                })
+        ];
+
+        return response()->json($responseData);
     }
 }

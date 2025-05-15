@@ -8,7 +8,11 @@ use App\Models\Product;
 use App\Models\Order;
 use App\Models\Quote;
 use App\Models\User;
+use App\Models\UserProfile;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use App\Models\Role;
@@ -33,73 +37,92 @@ class B2BController extends Controller
     public function registerBusiness(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'company_name' => 'required|string|max:255',
-            'tax_id' => 'required|string|max:50|unique:businesses',
-            'address' => 'required|string',
-            'city' => 'required|string',
-            'state' => 'required|string',
-            'zip' => 'required|string',
-            'phone' => 'required|string',
-            'email' => 'required|email|unique:businesses',
-            'contact_name' => 'required|string',
-            'password' => 'required|string|min:8|confirmed',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'company' => 'required|string|max:255',
+            'vatin' => 'nullable|string|max:255',
+            'phone_number' => 'required|string|max:20',
+
+             'country' => 'required|string|max:100',
+             'preferred_language' => 'nullable|string|max:50',
+            'preferred_product_ids' => 'nullable|array',
+            'preferred_product_ids.*' => 'integer',
+            'other_preferred_products' => 'nullable|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required',
+            'user_type' => 'required|string|in:buyer,seller,both',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
-        // Start transaction
+        // Begin transaction to ensure both user and profile are created
         DB::beginTransaction();
 
         try {
-            // Create business
-            $business = Business::create([
-                'company_name' => $request->company_name,
-                'tax_id' => $request->tax_id,
-                'address' => $request->address,
-                'city' => $request->city,
-                'state' => $request->state,
-                'zip' => $request->zip,
-                'phone' => $request->phone,
-                'email' => $request->email,
-                'contact_name' => $request->contact_name,
-                'status' => 'pending', // Requires admin approval
-            ]);
-
-            // Create admin user for this business
+            // Create the user
             $user = User::create([
-                'name' => $request->contact_name,
+                'name' => $request->first_name . ' ' . $request->last_name,
                 'email' => $request->email,
-                'password' => bcrypt($request->password),
-                'business_id' => $business->id,
+                'password' => Hash::make($request->password),
+                'phone_number' => $request->phone_number,
             ]);
 
-            // Assign business_admin role
-            // Make sure 'business_admin' role exists in your Spatie roles
-            $role = Role::firstOrCreate(['name' => 'business_admin']);
+            // Create user profile
+            $profile = UserProfile::create([
+                'user_id' => $user->id,
+                'first_name' => $request->first_name,
+                'last_name' => $request->last_name,
+                'company' => $request->company,
+                'vatin' => $request->vatin,
+                'phone_number' => $request->phone_number,
+                'fiscal_address' => $request->fiscal_address,
+                'zip_code' => $request->zip_code,
+                'country' => $request->country,
+                'company_activity_id' => $request->company_activity_id,
+                'preferred_language' => $request->preferred_language,
+                'preferred_product_ids' => json_encode($request->preferred_product_ids ?? []),
+                'other_preferred_products' => $request->other_preferred_products,
+            ]);
+
+            // Find or create the role
+            $role = Role::firstOrCreate(['name' => $request->user_type]);
+
+            // Assign role to user using the newly created assignRole method
             $user->assignRole($role);
 
-
-            // Generate token for the new user
-            $token = $user->createToken('Business Access Token', ['business'])->accessToken;
+            // If the user selected "both" as role, assign both buyer and seller roles
+            if ($request->user_type === 'both') {
+                $user->assignRole('buyer');
+                $user->assignRole('seller');
+            }
 
             DB::commit();
 
+            // Generate token for the user
+            $token =$user->createToken('Personal Access Token')->accessToken;
+
             return response()->json([
-                'message' => 'Business account created successfully. Awaiting approval.',
-                'business' => $business,
-                'user' => $user,
-                'token' => $token
+                'message' => 'User registered successfully',
+                'user' => $user->load('profile', 'roles'),
+                'token' => $token,
+                'role' => $request->user_type
             ], 201);
+
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'message' => 'Registration failed',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
+
 
     /**
      * Get business-specific catalog with custom pricing
@@ -114,14 +137,14 @@ class B2BController extends Controller
         }
 
         // Get products with business-specific pricing
-        $products = Product::with(['businessPricing' => function($query) use ($business) {
+        $products = Product::with(['businessPricing' => function ($query) use ($business) {
             $query->where('business_id', $business->id);
         }])
             ->where('is_b2b_available', true)
             ->paginate(20);
 
         // Format products with correct pricing
-        $formattedProducts = $products->map(function($product) {
+        $formattedProducts = $products->map(function ($product) {
             // If business has custom pricing, use it, otherwise use the default B2B price
             $price = $product->businessPricing->first() ?
                 $product->businessPricing->first()->price :
@@ -551,7 +574,7 @@ class B2BController extends Controller
             ->where('guard_name', 'api')
             ->with('permissions')
             ->get()
-            ->map(function($role) {
+            ->map(function ($role) {
                 return [
                     'id' => $role->id,
                     'name' => $role->name,

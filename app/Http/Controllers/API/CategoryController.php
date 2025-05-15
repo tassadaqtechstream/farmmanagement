@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CategoryCollection;
+use App\Http\Resources\CategoryResource;
+use App\Http\Resources\ProductCollection;
+use App\Http\Resources\ProductResource;
 use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -18,7 +22,7 @@ class CategoryController extends Controller
      */
     public function __construct()
     {
-       // $this->middleware(['auth:api', 'role:admin|b2b_admin']);
+        // $this->middleware(['auth:api', 'role:admin|b2b_admin']);
     }
 
     /**
@@ -67,23 +71,16 @@ class CategoryController extends Controller
         if ($request->has('per_page') && $request->per_page !== 'all') {
             $perPage = (int) $request->per_page;
             $categories = $query->paginate($perPage);
-            return response()->json([
-                'categories' => $categories->items(),
-                'total' => $categories->total(),
-                'page' => $categories->currentPage(),
-                'pageSize' => $categories->perPage(),
-                'totalPages' => $categories->lastPage(),
-                'data' => $categories->items()
-            ]);
+            return new CategoryCollection($categories);
         } else {
             $categories = $query->get();
             return response()->json([
-                'categories' => $categories,
+                'categories' => CategoryResource::collection($categories),
+                'data' => CategoryResource::collection($categories),
                 'total' => $categories->count(),
                 'page' => 1,
                 'pageSize' => $categories->count(),
                 'totalPages' => 1,
-                'data' => $categories
             ]);
         }
     }
@@ -117,7 +114,6 @@ class CategoryController extends Controller
             'slug' => 'nullable|string|max:255|unique:categories',
             'description' => 'nullable|string',
             'parent_id' => 'nullable|exists:categories,id',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'sort_order' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
             'is_featured' => 'boolean',
@@ -147,9 +143,9 @@ class CategoryController extends Controller
 
             // Upload image if provided
             $imagePath = null;
-            if ($request->hasFile('image')) {
+           /* if ($request->hasFile('image')) {
                 $imagePath = $request->file('image')->store('categories', 'public');
-            }
+            }*/
 
             // Create category
             $category = Category::create([
@@ -169,7 +165,7 @@ class CategoryController extends Controller
 
             return response()->json([
                 'message' => 'Category created successfully',
-                'category' => $category
+                'category' => new CategoryResource($category)
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -190,7 +186,7 @@ class CategoryController extends Controller
         $category->loadCount(['products', 'allProducts']);
 
         return response()->json([
-            'category' => $category
+            'category' => new CategoryResource($category)
         ]);
     }
 
@@ -280,9 +276,11 @@ class CategoryController extends Controller
 
             DB::commit();
 
+            $category->load(['parent', 'children']);
+
             return response()->json([
                 'message' => 'Category updated successfully',
-                'category' => $category->fresh(['parent', 'children'])
+                'category' => new CategoryResource($category)
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -453,8 +451,8 @@ class CategoryController extends Controller
         $products = $query->with(['images'])->paginate($request->per_page ?? 15);
 
         return response()->json([
-            'category' => $category,
-            'products' => $products
+            'category' => new CategoryResource($category),
+            'products' => new ProductCollection($products)
         ]);
     }
 
@@ -469,7 +467,7 @@ class CategoryController extends Controller
 
         return response()->json([
             'message' => 'Category B2B visibility updated',
-            'category' => $category
+            'category' => new CategoryResource($category)
         ]);
     }
 
@@ -550,28 +548,20 @@ class CategoryController extends Controller
         $tree = [];
 
         foreach ($categories as $category) {
-            $node = [
-                'id' => $category->id,
-                'name' => $category->name,
-                'slug' => $category->slug,
-                'is_active' => $category->is_active,
-                'is_featured' => $category->is_featured,
-                'is_b2b_visible' => $category->is_b2b_visible,
-                'sort_order' => $category->sort_order,
-                'image' => $category->image,
-                'products_count' => $category->products_count ?? $category->products()->count(),
-                'children' => []
-            ];
+            $categoryResource = new CategoryResource($category);
+            $data = $categoryResource->toArray(request());
 
             $children = Category::where('parent_id', $category->id)
                 ->orderBy('sort_order')
                 ->get();
 
             if ($children->count() > 0) {
-                $node['children'] = $this->buildCategoryTree($children);
+                $data['children'] = $this->buildCategoryTree($children);
+            } else {
+                $data['children'] = [];
             }
 
-            $tree[] = $node;
+            $tree[] = $data;
         }
 
         return $tree;

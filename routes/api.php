@@ -21,6 +21,7 @@ use \App\Http\Controllers\API\RolesController;
 use \App\Http\Controllers\API\UserController;
 use \App\Http\Controllers\API\B2BController;
 use \App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\AuthController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -174,6 +175,11 @@ Route::prefix('b2b')->group(function () {
     Route::post('/password/reset', [AuthController::class, 'resetPassword']);
 });
 
+Route::get('/all-categories', [CategoryController::class, 'tree']);
+Route::get('/get-filter-products', [ProductController::class, 'getProductsByCategory']);
+/*Route::get('/all-categories', [ProductController::class, 'getAllCategories']);*/
+Route::get('/subcategories', [ProductController::class, 'getSubcategories']);
+Route::get('/category/{slug}/{subCategorySlug?}', [ProductController::class, 'getBySlug']);
 Route::middleware(['auth:sanctum', 'business.approved'])->prefix('b2b')->group(function () {
     // Business profile
     Route::get('/profile', [B2BController::class, 'getBusinessProfile']);

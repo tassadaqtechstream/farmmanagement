@@ -27,12 +27,7 @@ class AuthController extends Controller
         // Find the user
         $user = User::where('email', $request->email)->first();
 
-        // Check if user exists and has a business
-        if (!$user || !$user->business_id) {
-            return response()->json([
-                'message' => 'Invalid credentials or no business account associated'
-            ], 401);
-        }
+
 
         // Check credentials
         if (!Hash::check($request->password, $user->password)) {
@@ -42,10 +37,13 @@ class AuthController extends Controller
         }
 
         // Create token
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token = $user->createToken('Personal Access Token')->accessToken;
+
+        // Load the user with business and profile relationships
+        $userData = $user->load([ 'profile']);
 
         return response()->json([
-            'user' => $user->load('business'),
+            'user' => $userData,
             'token' => $token
         ]);
     }

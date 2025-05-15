@@ -19,7 +19,9 @@ class DatabaseSeeder extends Seeder
             SeedVarietySeeder::class,
             SoilTypeSeeder::class,
             CropSeeder::class,
-            IrrigationSourceSeeder::class
+            IrrigationSourceSeeder::class,
+            CategorySeeder::class,
+            ProductSeeder::class
         ]);
        /* $employee = Admin::create([
             'name' => 'Admin',

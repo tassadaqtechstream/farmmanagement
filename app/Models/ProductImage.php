@@ -51,4 +51,9 @@ class ProductAttribute extends Model
             ->withPivot('attribute_value_id')
             ->withTimestamps();
     }
+    public function getImageUrlAttribute()
+    {
+        return $this->image_path?storage_path($this->image_path):'';
+    }
+
 }
