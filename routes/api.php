@@ -172,25 +172,26 @@ Route::prefix('b2b')->group(function () {
     Route::post('/register', [B2BController::class, 'registerBusiness']);
 
     // Authentication
+
     Route::post('/login', [AuthController::class, 'businessLogin']);
     Route::get('/products/featured', [ProductController::class, 'getAllFeatureProducts']);
     Route::get('/products/{id}', [ProductController::class, 'getProductDetail']);
 
     Route::post('/password/reset', [AuthController::class, 'resetPassword']);
     Route::post('/orders', [B2BController::class, 'placeOrder']);
-
+    Route::get('/get-filter-products', [ProductController::class, 'getProductsByCategory']);
+Route::get('/all-categories', [CategoryController::class, 'tree']);
+Route::get('/get-all-products', [ProductController::class, 'getAllProducts']);
 });
 
-Route::get('/all-categories', [CategoryController::class, 'tree']);
-Route::get('/get-filter-products', [ProductController::class, 'getProductsByCategory']);
+
 /*Route::get('/all-categories', [ProductController::class, 'getAllCategories']);*/
 Route::get('/subcategories', [ProductController::class, 'getSubcategories']);
 
 Route::get('/category/{slug}/{subCategorySlug?}', [ProductController::class, 'getBySlug']);
-Route::get('/all-categories', [CategoryController::class, 'tree']);
+
 Route::get('/get-filter-products', [ProductController::class, 'getProductsByCategory']);
-/*Route::get('/all-categories', [ProductController::class, 'getAllCategories']);*/
-Route::get('/subcategories', [ProductController::class, 'getSubcategories']);
+ Route::get('/subcategories', [ProductController::class, 'getSubcategories']);
 Route::get('/category/{slug}/{subCategorySlug?}', [ProductController::class, 'getBySlug']);
 Route::middleware(['auth:sanctum', 'business.approved'])->prefix('b2b')->group(function () {
     // Business profile

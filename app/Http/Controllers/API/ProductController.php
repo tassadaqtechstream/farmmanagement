@@ -1304,7 +1304,7 @@ class ProductController extends Controller
             ], 500);
         }
     }
- 
+
 
     public function getAllFeatureProducts()
     {
@@ -1425,5 +1425,78 @@ class ProductController extends Controller
                 'error' => $e->getMessage()
             ], 404);
         }
+    }
+
+    /**
+     * Get all products with pagination
+     */
+    public function getAllProducts(Request $request)
+    {
+        $query = Product::query();
+
+        // Apply filters
+        if ($request->has('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->has('is_b2b_available')) {
+            $query->where('is_b2b_available', $request->is_b2b_available);
+        }
+
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('sku', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Apply sorting
+        $sortField = $request->sort_by ?? 'created_at';
+        $sortDirection = $request->sort_direction ?? 'desc';
+        $query->orderBy($sortField, $sortDirection);
+
+        // Get paginated results
+        $perPage = $request->per_page ?? 15;
+        $page = $request->page ?? 1;
+        $products = $query->with(['category', 'images'])->paginate($perPage);
+
+        // Fetch all categories for the dropdown
+        $categories = Category::select('id', 'name')->orderBy('name')->get();
+
+        // Transform products to include image URLs using accessor
+        $transformedProducts = collect($products->items())->map(function($product) {
+            // Create a copy of the product to avoid modifying the original
+            $productData = $product->toArray();
+
+            // Add image URLs using the accessor
+            $productData['images'] = collect($product->images)->map(function($image) {
+                return [
+                    'id' => $image->id,
+                    'image_path' => $image->image_path,
+                    'alt_text' => $image->alt_text,
+                    'sort_order' => $image->sort_order,
+                    'image_url' => $image->image_url  // This uses the accessor
+                ];
+            })->toArray();
+
+            // Add featured image URL if it exists
+            $productData['featured_image_url'] = $product->featured_image ?
+                url('storage/' . $product->featured_image) :
+                null;
+
+            return $productData;
+        })->toArray();
+
+        // Structure response to match frontend expectations
+        return response()->json([
+            'data' => $transformedProducts,
+            'total' => $products->total(),
+            'current_page' => $products->currentPage(),
+            'per_page' => $products->perPage(),
+            'last_page' => $products->lastPage(),
+            'categories' => $categories
+        ]);
     }
 }

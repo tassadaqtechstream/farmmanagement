@@ -185,9 +185,7 @@ class B2BController extends Controller
 
         // Different validation rules based on user type
         $validationRules = [
-            'products' => 'required|array',
-            'products.*.id' => 'required|exists:products,id',
-            'products.*.quantity' => 'required|integer|min:1',
+
             'shipping_address' => 'required|string',
             'billing_address' => 'required|string',
             'payment_method' => 'required|string',
@@ -242,10 +240,11 @@ class B2BController extends Controller
             $orderItems = [];
 
             foreach ($request->products as $item) {
+
                 $product = Product::findOrFail($item['id']);
 
                 // B2B specific checks
-                if ($isB2BOrder) {
+              /*  if ($isB2BOrder) {
                     // Check if product is available for B2B
                     if (!$product->is_b2b_available) {
                         throw new \Exception("Product {$product->name} is not available for B2B orders");
@@ -260,12 +259,12 @@ class B2BController extends Controller
                     if (!$product->is_active) {
                         throw new \Exception("Product {$product->name} is not available");
                     }
-                }
+                }*/
 
                 // Check inventory for all orders
-                if ($product->stock < $item['quantity']) {
+             /*   if ($product->stock < $item['quantity']) {
                     throw new \Exception("Insufficient stock for {$product->name}");
-                }
+                }*/
 
                 // Determine price based on user type
                 $price = $product->price; // Default retail price
@@ -288,7 +287,7 @@ class B2BController extends Controller
                     'unit_price' => $price,
                     'total' => $itemTotal,
                 ];
-
+                Log::info('data',['data',$orderItems]);
                 // Update inventory
                 $product->stock -= $item['quantity'];
                 $product->save();
@@ -346,6 +345,7 @@ class B2BController extends Controller
             }
 
             // Create order
+
             $order = Order::create($orderData);
 
             // Create order items
