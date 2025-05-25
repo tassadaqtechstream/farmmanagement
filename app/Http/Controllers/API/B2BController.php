@@ -34,23 +34,32 @@ class B2BController extends Controller
     /**
      * Register a new business account
      */
+
     public function registerBusiness(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'company' => 'required|string|max:255',
-            'vatin' => 'nullable|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6',
+            'password_confirmation' => 'required|string|same:password',
             'phone_number' => 'required|string|max:20',
-
-             'country' => 'required|string|max:100',
-             'preferred_language' => 'nullable|string|max:50',
+            'company' => 'required|string|max:255',
+            'business_type' => 'required|string|max:100',
+            'country' => 'required|string|max:100',
+            'company_activity_id' => 'nullable|integer',
+            'city' => 'nullable|string|max:100',
+            'address' => 'required|string|max:500',
+            'fiscal_address' => 'nullable|string|max:500',
+            'zip_code' => 'nullable|string|max:20',
+            'description' => 'nullable|string|max:1000',
+            'product_category' => 'nullable|string|max:100',
+            'user_type' => 'required|string|in:buyer,seller,both',
+            'vatin' => 'nullable|string|max:255',
+            'preferred_language' => 'nullable|string|max:50',
             'preferred_product_ids' => 'nullable|array',
             'preferred_product_ids.*' => 'integer',
             'other_preferred_products' => 'nullable|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required',
-            'user_type' => 'required|string|in:buyer,seller,both',
         ]);
 
         if ($validator->fails()) {
@@ -78,33 +87,42 @@ class B2BController extends Controller
                 'first_name' => $request->first_name,
                 'last_name' => $request->last_name,
                 'company' => $request->company,
+                'business_type' => $request->business_type,
                 'vatin' => $request->vatin,
                 'phone_number' => $request->phone_number,
-                'fiscal_address' => $request->fiscal_address,
+                'address' => $request->address,
+                'fiscal_address' => $request->fiscal_address ?? $request->address, // Use address as fiscal_address if not provided
                 'zip_code' => $request->zip_code,
+                'city' => $request->city,
                 'country' => $request->country,
-                'company_activity_id' => $request->company_activity_id,
-                'preferred_language' => $request->preferred_language,
+                'description' => $request->description,
+                'product_category' => $request->product_category,
+                'company_activity_id' => $request->company_activity_id ?? 1, // Default to 1 or handle appropriately
+                'preferred_language' => $request->preferred_language ?? 'en', // Default to English
                 'preferred_product_ids' => json_encode($request->preferred_product_ids ?? []),
                 'other_preferred_products' => $request->other_preferred_products,
             ]);
 
-            // Find or create the role
-            $role = Role::firstOrCreate(['name' => $request->user_type]);
 
-            // Assign role to user using the newly created assignRole method
-            $user->assignRole($role);
 
             // If the user selected "both" as role, assign both buyer and seller roles
             if ($request->user_type === 'both') {
-                $user->assignRole('buyer');
-                $user->assignRole('seller');
+                $buyerRole = Role::firstOrCreate(['name' => 'buyer']);
+                $sellerRole = Role::firstOrCreate(['name' => 'seller']);
+                $user->assignRole($buyerRole);
+                $user->assignRole($sellerRole);
+            }else{
+                // Find or create the role
+                $role = Role::firstOrCreate(['name' => $request->user_type]);
+
+                // Assign role to user
+                $user->assignRole($role);
             }
 
             DB::commit();
 
             // Generate token for the user
-            $token =$user->createToken('Personal Access Token')->accessToken;
+            $token = $user->createToken('Personal Access Token')->accessToken;
 
             return response()->json([
                 'message' => 'User registered successfully',
@@ -122,7 +140,6 @@ class B2BController extends Controller
             ], 500);
         }
     }
-
 
     /**
      * Get business-specific catalog with custom pricing
