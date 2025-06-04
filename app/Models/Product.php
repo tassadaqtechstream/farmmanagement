@@ -46,6 +46,20 @@ class Product extends Model
         'notes',
         'attributes',
         'meta_data',
+        'approval_status',
+        'commission_rate',
+        'view_count',
+        'wishlist_count',
+        'purchase_count',
+        'average_rating',
+        'total_reviews',
+        'seller_id',
+        'seller_commission_rate',
+        'seller_amount',
+        'commission_amount',
+        'fulfillment_status',
+        'fulfillment_tracking_number',
+        'fulfillment_tracking_url',
     ];
 
     protected $casts = [

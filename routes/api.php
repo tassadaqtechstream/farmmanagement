@@ -22,6 +22,7 @@ use \App\Http\Controllers\API\UserController;
 use \App\Http\Controllers\API\B2BController;
 use \App\Http\Controllers\API\CategoryController;
 use \App\Http\Controllers\API\AuthController;
+use \App\Http\Controllers\API\SellerProductController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -182,6 +183,7 @@ Route::prefix('b2b')->group(function () {
     Route::get('/get-filter-products', [ProductController::class, 'getProductsByCategory']);
 Route::get('/all-categories', [CategoryController::class, 'tree']);
 Route::get('/get-all-products', [ProductController::class, 'getAllProducts']);
+
 });
 
 
@@ -193,7 +195,10 @@ Route::get('/category/{slug}/{subCategorySlug?}', [ProductController::class, 'ge
 Route::get('/get-filter-products', [ProductController::class, 'getProductsByCategory']);
  Route::get('/subcategories', [ProductController::class, 'getSubcategories']);
 Route::get('/category/{slug}/{subCategorySlug?}', [ProductController::class, 'getBySlug']);
-Route::middleware(['auth:sanctum', 'business.approved'])->prefix('b2b')->group(function () {
+Route::middleware(['auth:api'])->prefix('b2b')->group(function () {
+    Route::POST('store-products', [SellerProductController::class, 'store']);
+    Route::get('/products', [SellerProductController::class, 'getProducts']);
+
     // Business profile
     Route::get('/profile', [B2BController::class, 'getBusinessProfile']);
     Route::put('/profile', [B2BController::class, 'updateBusinessProfile']);
@@ -221,4 +226,11 @@ Route::middleware(['auth:sanctum', 'business.approved'])->prefix('b2b')->group(f
     // Reports
     Route::get('/reports/orders', [B2BController::class, 'getOrdersReport']);
     Route::get('/reports/spending', [B2BController::class, 'getSpendingReport']);
+});
+Route::middleware(['auth:api'])->post('/debug-auth', function (Request $request) {
+    return response()->json([
+        'message' => 'Authenticated successfully',
+        'user' => $request->user(),
+        'guard' => 'sanctum'
+    ]);
 });
