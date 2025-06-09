@@ -7,6 +7,7 @@ use App\Http\Resources\ProductResource;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Traits\ImageUploadTrait; // Add this line
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -14,10 +15,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\File;
 
 class SellerProductController extends Controller
 {
+    use ImageUploadTrait; // Add this line
+
     /**
      * Constructor with middleware
      */
@@ -73,13 +75,15 @@ class SellerProductController extends Controller
     }
 
     /**
-     * Store a newly created seller product with images in custom folder
+     * Store a newly created seller product
      */
     public function store(Request $request): JsonResponse
     {
         try {
-            // Custom validation for seller products
-            $validator = Validator::make($request->all(), [
+            // Get image validation rules from trait and merge with custom validation
+            $imageRules = $this->getImageValidationRules();
+
+            $validator = Validator::make($request->all(), array_merge([
                 'name' => 'required|string|max:255',
                 'description' => 'required|string|max:5000',
                 'short_description' => 'nullable|string|max:300',
@@ -91,12 +95,7 @@ class SellerProductController extends Controller
                 'weight' => 'nullable|numeric|min:0',
                 'brand' => 'nullable|string|max:100',
                 'model' => 'nullable|string|max:100',
-
-                // Image upload validation
-                'featured_image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120', // 5MB max
-                'images' => 'nullable|array|max:10', // Maximum 10 images
-                'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120', // 5MB per image
-            ]);
+            ], $imageRules));
 
             if ($validator->fails()) {
                 return response()->json([
@@ -110,22 +109,12 @@ class SellerProductController extends Controller
 
             $user = Auth::user();
 
-            Log::info('user data ',['data' => $user]);
+            Log::info('user data ', ['data' => $user]);
 
-            // Generate SKU using your existing method
+            // Generate SKU using existing method
             $sku = $this->generateSKU($request->name);
 
-            // Handle featured image upload to custom folder
-            $featuredImagePath = null;
-            if ($request->hasFile('featured_image')) {
-                $featuredImagePath = $this->uploadToCustomFolder(
-                    $request->file('featured_image'),
-                    'seller_products/featured',
-                    $user->id
-                );
-            }
-
-            // Create product using your existing structure but with seller modifications
+            // Create product using existing structure but with seller modifications
             $product = Product::create([
                 'name' => $request->name,
                 'slug' => Str::slug($request->name),
@@ -140,7 +129,6 @@ class SellerProductController extends Controller
                 'weight' => $request->weight,
                 'brand' => $request->brand,
                 'model' => $request->model,
-                'featured_image' => $featuredImagePath,
 
                 // Seller-specific settings
                 'approval_status' => 'pending', // Always pending for sellers
@@ -161,10 +149,8 @@ class SellerProductController extends Controller
                 ]
             ]);
 
-            // Handle additional product images in custom folder
-            if ($request->hasFile('images')) {
-                $this->handleAdditionalImages($product, $request->file('images'), $user->id);
-            }
+            // Handle images using the trait (Seller upload - with seller_id)
+            $this->processProductImages($product, $request, $user->id);
 
             DB::commit();
 
@@ -223,26 +209,9 @@ class SellerProductController extends Controller
 
             $products = $query->paginate($request->get('per_page', 15));
 
-            // Transform products to include proper image URLs from custom folder
+            // Transform products using the trait
             $transformedProducts = collect($products->items())->map(function($product) {
-                $productData = $product->toArray();
-
-                // Add image URLs from custom folder
-                $productData['images'] = collect($product->images)->map(function($image) {
-                    return [
-                        'id' => $image->id,
-                        'image_path' => $image->image_path,
-                        'alt_text' => $image->alt_text,
-                        'sort_order' => $image->sort_order,
-                        'image_url' => $this->getCustomImageUrl($image->image_path)
-                    ];
-                })->toArray();
-
-                // Add featured image URL from custom folder
-                $productData['featured_image_url'] = $product->featured_image ?
-                    $this->getCustomImageUrl($product->featured_image) : null;
-
-                return $productData;
+                return $this->transformProductImages($product);
             })->toArray();
 
             return response()->json([
@@ -284,19 +253,12 @@ class SellerProductController extends Controller
                 ], 404);
             }
 
-            // Transform images to include custom URLs
-            $product->images->transform(function($image) {
-                $image->image_url = $this->getCustomImageUrl($image->image_path);
-                return $image;
-            });
-
-            if ($product->featured_image) {
-                $product->featured_image_url = $this->getCustomImageUrl($product->featured_image);
-            }
+            // Transform images using the trait
+            $productData = $this->transformProductImages($product);
 
             return response()->json([
                 'success' => true,
-                'data' => new ProductResource($product)
+                'data' => $productData
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching product: ' . $e->getMessage());
@@ -326,8 +288,10 @@ class SellerProductController extends Controller
                 ], 404);
             }
 
-            // Validation
-            $validator = Validator::make($request->all(), [
+            // Get image validation rules from trait
+            $imageRules = $this->getImageValidationRules();
+
+            $validator = Validator::make($request->all(), array_merge([
                 'name' => 'sometimes|required|string|max:255',
                 'description' => 'sometimes|required|string|max:5000',
                 'short_description' => 'sometimes|nullable|string|max:300',
@@ -339,14 +303,7 @@ class SellerProductController extends Controller
                 'weight' => 'sometimes|nullable|numeric|min:0',
                 'brand' => 'sometimes|nullable|string|max:100',
                 'model' => 'sometimes|nullable|string|max:100',
-
-                // Image uploads
-                'featured_image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
-                'images' => 'sometimes|nullable|array|max:10',
-                'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
-                'delete_images' => 'sometimes|array',
-                'delete_images.*' => 'exists:product_images,id',
-            ]);
+            ], $imageRules));
 
             if ($validator->fails()) {
                 return response()->json([
@@ -357,20 +314,6 @@ class SellerProductController extends Controller
             }
 
             DB::beginTransaction();
-
-            // Handle featured image update
-            $featuredImagePath = $product->featured_image;
-            if ($request->hasFile('featured_image')) {
-                // Delete old featured image
-                if ($featuredImagePath) {
-                    $this->deleteCustomImage($featuredImagePath);
-                }
-                $featuredImagePath = $this->uploadToCustomFolder(
-                    $request->file('featured_image'),
-                    'seller_products/featured',
-                    $user->id
-                );
-            }
 
             // If product was approved, set it back to pending for re-approval
             $approvalStatus = $product->approval_status;
@@ -391,7 +334,6 @@ class SellerProductController extends Controller
                 'weight' => $request->weight,
                 'brand' => $request->brand,
                 'model' => $request->model,
-                'featured_image' => $featuredImagePath,
                 'approval_status' => $approvalStatus,
             ], function($value) {
                 return $value !== null;
@@ -408,14 +350,12 @@ class SellerProductController extends Controller
 
             $product->update($updateData);
 
-            // Handle image deletions
-            if ($request->has('delete_images') && is_array($request->delete_images)) {
-                $this->deleteProductImages($product, $request->delete_images);
-            }
+            // Handle image updates using the trait (Seller update - with seller_id)
+            $featuredImagePath = $this->updateProductImages($product, $request, $user->id);
 
-            // Handle new additional images
-            if ($request->hasFile('images')) {
-                $this->handleAdditionalImages($product, $request->file('images'), $user->id);
+            // Update featured image path if changed
+            if ($featuredImagePath !== $product->featured_image) {
+                $product->update(['featured_image' => $featuredImagePath]);
             }
 
             DB::commit();
@@ -458,15 +398,8 @@ class SellerProductController extends Controller
 
             DB::beginTransaction();
 
-            // Delete featured image from custom folder
-            if ($product->featured_image) {
-                $this->deleteCustomImage($product->featured_image);
-            }
-
-            // Delete additional images from custom folder
-            foreach ($product->images as $image) {
-                $this->deleteCustomImage($image->image_path);
-            }
+            // Clean up images using the trait
+            $this->cleanupProductImages($product);
 
             // Soft delete product
             $product->delete();
@@ -527,90 +460,6 @@ class SellerProductController extends Controller
     }
 
     /**
-     * Upload image to custom folder structure
-     */
-    private function uploadToCustomFolder($file, $directory, $sellerId): string
-    {
-        // Create custom directory structure: public/seller_products/{seller_id}/{directory}
-        $customPath = "seller_products/{$sellerId}/{$directory}";
-
-        // Create directory if it doesn't exist
-        $fullPath = public_path($customPath);
-        if (!File::exists($fullPath)) {
-            File::makeDirectory($fullPath, 0755, true);
-        }
-
-        // Generate unique filename
-        $filename = time() . '_' . Str::random(10) . '.' . $file->getClientOriginalExtension();
-
-        // Move file to custom directory
-        $file->move($fullPath, $filename);
-
-        return $customPath . '/' . $filename;
-    }
-
-    /**
-     * Handle additional product images
-     */
-    private function handleAdditionalImages(Product $product, array $images, $sellerId): void
-    {
-        $sortOrder = $product->images()->max('sort_order') ?? 0;
-
-        foreach ($images as $index => $image) {
-            $imagePath = $this->uploadToCustomFolder($image, 'gallery', $sellerId);
-
-            ProductImage::create([
-                'product_id' => $product->id,
-                'image_path' => $imagePath,
-                'alt_text' => $product->name . ' - Image ' . ($sortOrder + $index + 1),
-                'sort_order' => $sortOrder + $index + 1
-            ]);
-        }
-    }
-
-    /**
-     * Delete images from custom folder
-     */
-    private function deleteCustomImage(string $path): void
-    {
-        $fullPath = public_path($path);
-        if (File::exists($fullPath)) {
-            File::delete($fullPath);
-        }
-    }
-
-    /**
-     * Delete specific product images
-     */
-    private function deleteProductImages(Product $product, array $imageIds): void
-    {
-        $imagesToDelete = ProductImage::whereIn('id', $imageIds)
-            ->where('product_id', $product->id)
-            ->get();
-
-        foreach ($imagesToDelete as $image) {
-            // Delete file from custom folder
-            $this->deleteCustomImage($image->image_path);
-
-            // If this was the featured image, clear it
-            if ($product->featured_image == $image->image_path) {
-                $product->update(['featured_image' => null]);
-            }
-
-            // Delete record
-            $image->delete();
-        }
-    }
-
-    /**
-     * Get custom image URL
-     */
-    private function getCustomImageUrl(string $path): string
-    {
-        return url($path);
-    }
-
-    /**
      * Generate unique SKU (reuse from your existing controller)
      */
     private function generateSKU(string $productName): string
@@ -629,7 +478,7 @@ class SellerProductController extends Controller
         return $sku;
     }
 
-     public function getProducts(Request $request): JsonResponse
+    public function getProducts(Request $request): JsonResponse
     {
         $seller = Auth::user();
 
@@ -672,6 +521,4 @@ class SellerProductController extends Controller
             ]
         ]);
     }
-
-
 }

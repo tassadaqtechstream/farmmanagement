@@ -12,6 +12,7 @@ use App\Models\ProductAttribute;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductVariant;
 use App\Models\ProductVolumePricing;
+use App\Traits\ImageUploadTrait;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,7 @@ use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
+    use ImageUploadTrait; // Add this line
     /**
      * Constructor with middleware
      */
@@ -79,12 +81,12 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * Store a new product
-     */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        // Merge image validation rules with existing rules
+        $imageRules = $this->getImageValidationRules();
+
+        $validator = Validator::make($request->all(), array_merge([
             // Existing validations...
             'name' => 'required|string|max:255',
             'slug' => 'nullable|string|max:255|unique:products',
@@ -111,8 +113,6 @@ class ProductController extends Controller
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string',
             'meta_keywords' => 'nullable|string|max:255',
-            'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
             'categories' => 'nullable|array',
             'categories.*' => 'exists:categories,id',
             'attributes' => 'nullable|array',
@@ -130,7 +130,7 @@ class ProductController extends Controller
             'b2b_discount' => 'nullable|numeric|min:0|max:100',
             'b2b_terms' => 'nullable|string',
             'variants' => 'nullable|string', // JSON string of variants
-        ]);
+        ], $imageRules));
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -192,7 +192,6 @@ class ProductController extends Controller
                 'b2b_terms' => $request->b2b_terms,
             ]);
 
-            // Rest of the function stays the same...
             // Handle additional categories if provided
             if ($request->has('categories') && is_array($request->categories)) {
                 $product->categories()->sync($request->categories);
@@ -223,8 +222,6 @@ class ProductController extends Controller
                 }
             }
 
-
-
             // Handle variants if provided
             if ($request->filled('variants')) {
                 $variants = json_decode($request->variants, true);
@@ -249,28 +246,11 @@ class ProductController extends Controller
                             'attributes' => json_encode($variant['attributes'] ?? []),
                         ]);
                     }
-
                 }
             }
-            // Handle images if uploaded
-            if ($request->hasFile('images')) {
-                $sortOrder = 1;
-                foreach ($request->file('images') as $image) {
-                    $path = $image->store('products', 'public');
 
-                    ProductImage::create([
-                        'product_id' => $product->id,
-                        'image_path' => $path,
-                        'alt_text' => $product->name,
-                        'sort_order' => $sortOrder++,
-                    ]);
-
-                    // Set the first image as featured image
-                    if ($sortOrder == 2) {
-                        $product->update(['featured_image' => $path]);
-                    }
-                }
-            }
+            // Handle images using the trait (Admin upload - no seller_id)
+            $this->processProductImages($product, $request);
 
             DB::commit();
 
@@ -287,6 +267,7 @@ class ProductController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Get a specific product
@@ -309,14 +290,14 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * Update a product
-     */
     public function update(Request $request, $id)
     {
         $product = Product::findOrFail($id);
 
-        $validator = Validator::make($request->all(), [
+        // Merge image validation rules with existing rules
+        $imageRules = $this->getImageValidationRules();
+
+        $validator = Validator::make($request->all(), array_merge([
             'name' => 'sometimes|required|string|max:255',
             'slug' => 'sometimes|nullable|string|max:255|unique:products,slug,' . $id,
             'description' => 'sometimes|nullable|string',
@@ -342,8 +323,6 @@ class ProductController extends Controller
             'meta_title' => 'sometimes|nullable|string|max:255',
             'meta_description' => 'sometimes|nullable|string',
             'meta_keywords' => 'sometimes|nullable|string|max:255',
-            'images' => 'sometimes|nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
             'categories' => 'sometimes|nullable|array',
             'categories.*' => 'exists:categories,id',
             'attributes' => 'sometimes|nullable|array',
@@ -352,9 +331,7 @@ class ProductController extends Controller
             'volume_pricing.*.min_quantity' => 'required|integer|min:1',
             'volume_pricing.*.max_quantity' => 'nullable|integer|min:1',
             'volume_pricing.*.price' => 'required|numeric|min:0',
-            'delete_images' => 'sometimes|array',
-            'delete_images.*' => 'exists:product_images,id',
-        ]);
+        ], $imageRules));
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
@@ -428,49 +405,12 @@ class ProductController extends Controller
                 }
             }
 
-            // Update volume pricing if provided
+            // Handle image updates using the trait (Admin update - no seller_id)
+            $featuredImagePath = $this->updateProductImages($product, $request);
 
-
-            // Delete images if requested
-            if ($request->has('delete_images') && is_array($request->delete_images)) {
-                $imagesToDelete = ProductImage::whereIn('id', $request->delete_images)
-                    ->where('product_id', $product->id)
-                    ->get();
-
-                foreach ($imagesToDelete as $image) {
-                    // Delete from storage
-                    Storage::disk('public')->delete($image->image_path);
-
-                    // If this was the featured image, clear it
-                    if ($product->featured_image == $image->image_path) {
-                        $product->featured_image = null;
-                        $product->save();
-                    }
-
-                    // Delete record
-                    $image->delete();
-                }
-            }
-
-            // Handle new images if uploaded
-            if ($request->hasFile('images')) {
-                $sortOrder = $product->images()->max('sort_order') + 1;
-                foreach ($request->file('images') as $image) {
-                    $path = $image->store('products', 'public');
-
-                    $newImage = ProductImage::create([
-                        'product_id' => $product->id,
-                        'image_path' => $path,
-                        'alt_text' => $product->name,
-                        'sort_order' => $sortOrder++,
-                    ]);
-
-                    // Set as featured image if none exists
-                    if (empty($product->featured_image)) {
-                        $product->featured_image = $path;
-                        $product->save();
-                    }
-                }
+            // Update featured image path if changed
+            if ($featuredImagePath !== $product->featured_image) {
+                $product->update(['featured_image' => $featuredImagePath]);
             }
 
             DB::commit();
@@ -489,9 +429,6 @@ class ProductController extends Controller
         }
     }
 
-    /**
-     * Delete a product
-     */
     public function destroy($id)
     {
         $product = Product::findOrFail($id);
@@ -499,10 +436,8 @@ class ProductController extends Controller
         DB::beginTransaction();
 
         try {
-            // Delete related images from storage
-            foreach ($product->images as $image) {
-                Storage::disk('public')->delete($image->image_path);
-            }
+            // Clean up images using the trait
+            $this->cleanupProductImages($product);
 
             // Delete the product (using soft delete)
             $product->delete();
@@ -1430,8 +1365,9 @@ class ProductController extends Controller
         }
     }
 
+
     /**
-     * Get all products with pagination
+     * Get all products with pagination (Updated to use trait)
      */
     public function getAllProducts(Request $request)
     {
@@ -1468,28 +1404,9 @@ class ProductController extends Controller
         // Fetch all categories for the dropdown
         $categories = Category::select('id', 'name')->orderBy('name')->get();
 
-        // Transform products to include image URLs using accessor
+        // Transform products using the trait
         $transformedProducts = collect($products->items())->map(function($product) {
-            // Create a copy of the product to avoid modifying the original
-            $productData = $product->toArray();
-
-            // Add image URLs using the accessor
-            $productData['images'] = collect($product->images)->map(function($image) {
-                return [
-                    'id' => $image->id,
-                    'image_path' => $image->image_path,
-                    'alt_text' => $image->alt_text,
-                    'sort_order' => $image->sort_order,
-                    'image_url' => $image->image_url  // This uses the accessor
-                ];
-            })->toArray();
-
-            // Add featured image URL if it exists
-            $productData['featured_image_url'] = $product->featured_image ?
-                url('storage/' . $product->featured_image) :
-                null;
-
-            return $productData;
+            return $this->transformProductImages($product);
         })->toArray();
 
         // Structure response to match frontend expectations
@@ -1502,6 +1419,4 @@ class ProductController extends Controller
             'categories' => $categories
         ]);
     }
-
-
 }
