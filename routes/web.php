@@ -13,9 +13,16 @@ use Illuminate\Support\Facades\Route;
 |
 */
 use App\Http\Controllers\MailController;
+use Illuminate\Support\Facades\Artisan;
 
 Route::get('/send-test-email', [MailController::class, 'sendTestEmail']);
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+
+Route::get('/run-migrations', function () {
+    Artisan::call('migrate', ['--force' => true]);
+    return 'Migrations executed!';
 });
