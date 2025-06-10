@@ -1054,8 +1054,8 @@ class ProductController extends Controller
             $subCategory = null;
 
             // Detailed category filtering with extensive logging
-            if ($request->has('category')) {
-                $categorySlug = $request->category;
+            if ($request->has('category') && !empty(trim($request->category))) {
+                $categorySlug = trim($request->category);
                 \Log::info('Searching for main category', ['slug' => $categorySlug]);
 
                 $mainCategory = Category::where(function($q) use ($categorySlug) {
@@ -1077,8 +1077,8 @@ class ProductController extends Controller
             }
 
             // Subcategory filtering with more detailed checks
-            if ($request->has('sub_category')) {
-                $subcategorySlug = $request->sub_category;
+            if ($request->has('sub_category') && !empty(trim($request->sub_category))) {
+                $subcategorySlug = trim($request->sub_category);
                 \Log::info('Searching for subcategory', ['slug' => $subcategorySlug]);
 
                 $subcategoryQuery = Category::where(function($q) use ($subcategorySlug) {
@@ -1105,8 +1105,24 @@ class ProductController extends Controller
                 }
             }
 
-            // If no category or subcategory is found, return helpful error
-            if (!$mainCategory && !$subCategory) {
+            // Apply category filtering logic
+            if ($subCategory) {
+                // If subcategory is found, filter by subcategory only
+                $query->where('category_id', $subCategory->id);
+            } elseif ($mainCategory) {
+                // If only main category is found, include main category and all its subcategories
+                $categoryIds = [$mainCategory->id];
+                $subcategoryIds = Category::where('parent_id', $mainCategory->id)
+                    ->pluck('id')
+                    ->toArray();
+
+                if (!empty($subcategoryIds)) {
+                    $categoryIds = array_merge($categoryIds, $subcategoryIds);
+                }
+
+                $query->whereIn('category_id', $categoryIds);
+            } elseif ($request->has('category') || $request->has('sub_category')) {
+                // If category or subcategory was requested but not found, return error
                 return response()->json([
                     'message' => 'No matching categories found',
                     'input' => [
@@ -1116,37 +1132,16 @@ class ProductController extends Controller
                 ], 404);
             }
 
-            // Apply category filtering
-            if ($mainCategory) {
-                if (!$request->has('sub_category')) {
-                    $categoryIds = [$mainCategory->id];
-                    $subcategoryIds = Category::where('parent_id', $mainCategory->id)
-                        ->pluck('id')
-                        ->toArray();
-
-                    if (!empty($subcategoryIds)) {
-                        $categoryIds = array_merge($categoryIds, $subcategoryIds);
-                    }
-
-                    $query->whereIn('category_id', $categoryIds);
-                }
-            }
-
-            // Apply subcategory filtering
-            if ($subCategory) {
-                $query->where('category_id', $subCategory->id);
-            }
-
             // Additional filters
-            if ($request->has('brand')) {
-                $query->where('brand', $request->brand);
+            if ($request->has('brand') && !empty(trim($request->brand))) {
+                $query->where('brand', trim($request->brand));
             }
 
-            if ($request->has('min_price')) {
+            if ($request->has('min_price') && is_numeric($request->min_price)) {
                 $query->where('price', '>=', $request->min_price);
             }
 
-            if ($request->has('max_price')) {
+            if ($request->has('max_price') && is_numeric($request->max_price)) {
                 $query->where('price', '<=', $request->max_price);
             }
 
@@ -1161,38 +1156,16 @@ class ProductController extends Controller
             // Include product images
             $query->with(['images']);
 
-            // Get products
+            // Get products - FIXED: Actually execute the query instead of just getting SQL
             $products = $query->get();
 
-
-
             // Map products to the expected frontend format
-            $mappedProducts = $products->map(function($product) {
-                // Handle image selection with multiple images
-                $images = $product->images;
-                $imageUrl = null;
-
-                $imageUrl = $images->first()
-                    ? url('storage/' . $images->first()->image_path)
-                    : null;;
-
-
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'price' => (string)($product->price ?? '1.450'),
-                    'weight' => $product->weight ?? '1000.0 MT',
-                    'incoterm' => 'FCA', // Default incoterm
-                    'country' => 'UA',   // Default country
-                    'verified' => (bool)$product->is_active,
-                    'image' => $imageUrl,
-                    'expirationDate' => Carbon::now()->addDays(7)->toDateString(),
-
-                ];
+            $transformedProducts = collect($products)->map(function($product) {
+                return $this->transformProductImages($product);
             });
 
             // Additional error handling for empty result set
-            if ($mappedProducts->isEmpty()) {
+            if ($transformedProducts->isEmpty()) {
                 return response()->json([
                     'message' => 'No products found matching the specified criteria',
                     'input' => $request->all(),
@@ -1219,9 +1192,9 @@ class ProductController extends Controller
             ];
 
             return response()->json([
-                'data' => $mappedProducts,
+                'data' => $transformedProducts,
                 'meta' => [
-                    'total_count' => $mappedProducts->count(),
+                    'total_count' => $transformedProducts->count(),
                     'min_price' => $products->min('price') ?? 0,
                     'max_price' => $products->max('price') ?? 0,
                     'brands' => $products->pluck('brand')->unique()->filter()->values(),

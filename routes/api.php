@@ -23,6 +23,7 @@ use \App\Http\Controllers\API\B2BController;
 use \App\Http\Controllers\API\CategoryController;
 use \App\Http\Controllers\API\AuthController;
 use \App\Http\Controllers\API\SellerProductController;
+use \App\Http\Controllers\API\PreHarvestController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -196,6 +197,19 @@ Route::get('/get-filter-products', [ProductController::class, 'getProductsByCate
  Route::get('/subcategories', [ProductController::class, 'getSubcategories']);
 Route::get('/category/{slug}/{subCategorySlug?}', [ProductController::class, 'getBySlug']);
 Route::middleware(['auth:api'])->prefix('b2b')->group(function () {
+    Route::get('/pre-harvest', [PreHarvestController::class, 'index']);
+    Route::get('/pre-harvest/{id}', [PreHarvestController::class, 'show']);
+    Route::post('/pre-harvest', [PreHarvestController::class, 'store']);
+    Route::put('/pre-harvest/{id}', [PreHarvestController::class, 'update']);
+    Route::delete('/pre-harvest/{id}', [PreHarvestController::class, 'destroy']);
+
+    // Bookings
+    Route::post('/pre-harvest/{id}/book', [PreHarvestController::class, 'createBooking']);
+    Route::put('/bookings/{id}/confirm', [PreHarvestController::class, 'confirmBooking']);
+    Route::put('/bookings/{id}/cancel', [PreHarvestController::class, 'cancelBooking']);
+    Route::get('/my-listings', [PreHarvestController::class, 'myListings']);
+    Route::get('/my-bookings', [PreHarvestController::class, 'myBookings']);
+    Route::get('/analytics', [PreHarvestController::class, 'analytics']);
     Route::POST('store-products', [SellerProductController::class, 'store']);
     Route::get('/products', [SellerProductController::class, 'getProducts']);
 
